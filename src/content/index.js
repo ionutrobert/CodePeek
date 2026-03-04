@@ -229,6 +229,7 @@
         top: rect.top,
         left: rect.left,
       },
+      html: el.outerHTML // For element export
     };
 
     // Send data to side panel with robust retry to handle transient errors
@@ -886,20 +887,81 @@
     return a[0] * 0.2126 + a[1] * 0.7152 + a[2] * 0.0722;
   }
 
-  function getSimpleSelector(el) {
-    if (!el) return "element";
-    if (el.id) return "#" + el.id;
-    var classText =
-      typeof el.className === "string"
-        ? el.className
-        : el.getAttribute
-          ? el.getAttribute("class") || ""
-          : "";
-    var firstClass = String(classText).trim().split(" ")[0];
-    return firstClass ? "." + firstClass : el.tagName.toLowerCase();
-  }
+   function getSimpleSelector(el) {
+     if (!el) return "element";
+     if (el.id) return "#" + el.id;
+     var classText =
+       typeof el.className === "string"
+         ? el.className
+         : el.getAttribute
+           ? el.getAttribute("class") || ""
+           : "";
+     var firstClass = String(classText).trim().split(" ")[0];
+     return firstClass ? "." + firstClass : el.tagName.toLowerCase();
+   }
 
-   if (
+   function detectTechStack() {
+     var result = {
+       frameworks: [],
+       css: [],
+       build: [],
+       confidence: {}
+     };
+     
+     // Detect JavaScript frameworks
+     if (window.React || window.ReactDOM) result.frameworks.push('React');
+     if (window.Vue) result.frameworks.push('Vue');
+     if (window.angular) result.frameworks.push('Angular');
+     if (window.svelte) result.frameworks.push('Svelte');
+     if (window.Ember) result.frameworks.push('Ember');
+     if (window.Backbone) result.frameworks.push('Backbone');
+     
+     // Detect jQuery
+     if (window.jQuery) {
+       result.frameworks.push('jQuery');
+       if (window.jQuery.fn && window.jQuery.fn.modal) result.css.push('Bootstrap (via jQuery)');
+     }
+     
+     // Detect Tailwind CSS by utility class patterns
+     var html = document.documentElement.innerHTML || '';
+     if (/\b(bg|text|flex|grid|p|m|pt|pr|pb|pl|mx|my|w|h|min-w|max-w|border|rounded|shadow|opacity|z|inset|absolute|relative|fixed|sticky)-[a-z0-9]+\b/.test(html)) {
+       result.css.push('Tailwind CSS');
+     }
+     
+     // Detect Bootstrap via class patterns
+     if (/\b(container|row|col(?:-sm|-md|-lg|-xl)?)\b/.test(html)) {
+       result.css.push('Bootstrap');
+     }
+     
+     // Detect Bulma
+     if (/\b(is-active|is-primary|is-success|has-text-centered)\b/.test(html)) {
+       result.css.push('Bulma');
+     }
+     
+     // Detect build tools from script src
+     var scripts = document.querySelectorAll('script[src]');
+     scripts.forEach(function(s) {
+       var src = s.src.toLowerCase();
+       if (src.includes('webpack')) result.build.push('Webpack');
+       if (src.includes('vite')) result.build.push('Vite');
+       if (src.includes('parcel')) result.build.push('Parcel');
+       if (src.includes('next')) result.frameworks.push('Next.js');
+       if (src.includes('nuxt')) result.frameworks.push('Nuxt.js');
+       if (src.includes('gatsby')) result.frameworks.push('Gatsby');
+     });
+     
+     // Deduplicate
+     result.frameworks = [...new Set(result.frameworks)];
+     result.css = [...new Set(result.css)];
+     result.build = [...new Set(result.build)];
+     
+     // Simple confidence based on signals count
+     result.confidence.overall = Math.min(100, (result.frameworks.length + result.css.length + result.build.length) * 25);
+     
+     return result;
+   }
+
+    if (
      typeof chrome !== "undefined" &&
      chrome.runtime &&
      chrome.runtime.onMessage
@@ -939,25 +1001,31 @@
               sendResponse({ success: true });
             }, 150); // Give time for rendering
             break;
-          case "GET_SCROLL_DIMENSIONS":
-            sendResponse({
-              success: true,
-              data: {
-                width: Math.max(
-                  document.documentElement.scrollWidth,
-                  document.body.scrollWidth,
-                ),
-                height: Math.max(
-                  document.documentElement.scrollHeight,
-                  document.body.scrollHeight,
-                ),
-                viewportWidth: window.innerWidth,
-                viewportHeight: window.innerHeight,
-              },
-            });
-            break;
-          default:
-            sendResponse({ success: false, error: "Unknown type" });
+            case "GET_SCROLL_DIMENSIONS":
+             sendResponse({
+               success: true,
+               data: {
+                 width: Math.max(
+                   document.documentElement.scrollWidth,
+                   document.body.scrollWidth,
+                 ),
+                 height: Math.max(
+                   document.documentElement.scrollHeight,
+                   document.body.scrollHeight,
+                 ),
+                 viewportWidth: window.innerWidth,
+                 viewportHeight: window.innerHeight,
+               },
+             });
+             break;
+           case "GET_TECH_STACK":
+             sendResponse({
+               success: true,
+               data: detectTechStack()
+             });
+             break;
+           default:
+             sendResponse({ success: false, error: "Unknown type" });
         }
       } catch (e) {
         console.error("Content script error:", e);
