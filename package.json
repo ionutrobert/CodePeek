@@ -1,0 +1,20 @@
+{
+  "name": "code-peek",
+  "version": "1.0.0",
+  "description": "Chrome extension for inspecting CSS, colors, typography, and assets",
+  "scripts": {
+    "build": "node build/prod.js"
+  },
+  "devDependencies": {
+    "canvas": "^3.2.1",
+    "tailwindcss": "^3.4.0"
+  },
+  "keywords": [
+    "chrome-extension",
+    "css",
+    "typography",
+    "design",
+    "inspector"
+  ],
+  "license": "MIT"
+}

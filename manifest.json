@@ -1,0 +1,69 @@
+{
+  "manifest_version": 3,
+  "name": "Code Peek",
+  "version": "1.0.0",
+  "description": "Inspect CSS, colors, typography, and assets from any website",
+  "permissions": [
+    "activeTab",
+    "tabs",
+    "scripting",
+    "downloads",
+    "sidePanel"
+  ],
+  "host_permissions": [
+    "http://*/*",
+    "https://*/*",
+    "file://*/*"
+  ],
+  "background": {
+    "service_worker": "src/background/service-worker.js"
+  },
+   "content_scripts": [
+      {
+        "matches": [
+          "http://*/*",
+          "https://*/*",
+          "file://*/*"
+        ],
+        "js": [
+          "src/content/bundle.js"
+        ],
+        "run_at": "document_end",
+        "all_frames": true
+      }
+    ],
+  "side_panel": {
+    "default_path": "src/sidepanel/index.html"
+  },
+  "action": {
+    "default_title": "Open Code Peek",
+    "default_icon": {
+      "16": "icons/icon-16.png",
+      "32": "icons/icon-32.png",
+      "48": "icons/icon-48.png",
+      "128": "icons/icon-128.png"
+    }
+  },
+  "icons": {
+    "16": "icons/icon-16.png",
+    "32": "icons/icon-32.png",
+    "48": "icons/icon-48.png",
+    "128": "icons/icon-128.png"
+  },
+  "commands": {
+    "toggle-side-panel": {
+      "suggested_key": {
+        "default": "Ctrl+Shift+P",
+        "mac": "Command+Shift+P"
+      },
+      "description": "Toggle Code Peek side panel"
+    },
+    "toggle-inspect-mode": {
+      "suggested_key": {
+        "default": "Ctrl+Shift+I",
+        "mac": "Command+Shift+I"
+      },
+      "description": "Toggle inspect mode"
+    }
+  }
+}
