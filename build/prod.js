@@ -42,21 +42,25 @@ fs.cpSync('icons', 'dist/icons', { recursive: true });
 console.log('  ⦿ Copying sidepanel...');
 fs.mkdirSync('dist/sidepanel', { recursive: true });
 
-var sidepanelFiles = [
-  'index.html',
-  'error-handler.js',
-  'app.js',
-  'components/tab-overview.js',
-  'components/tab-colors.js',
-  'components/tab-typography.js',
-  'components/tab-assets.js',
-  'components/element-inspector.js',
-  'components/color-picker.js',  // ADDED
-  'utils/messaging.js',
-  'utils/formatters.js',
-  'styles/generated.css',
-  'styles/main.css'
-];
+ var sidepanelFiles = [
+   'index.html',
+   'error-handler.js',
+   'app.js',
+   'components/tab-overview.js',
+   'components/tab-colors.js',
+   'components/tab-typography.js',
+   'components/tab-assets.js',
+   'components/element-inspector.js',
+   'components/color-picker.js',  // ADDED
+   'components/tab-rulers.js',
+   'components/tab-tech-stack.js',
+   'components/tab-code-snippets.js',
+   'components/tab-audit.js',
+   'utils/messaging.js',
+   'utils/formatters.js',
+   'styles/generated.css',
+   'styles/main.css'
+ ];
 
 sidepanelFiles.forEach(function(file) {
   var srcPath = path.join('src/sidepanel', file);
