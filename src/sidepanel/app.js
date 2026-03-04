@@ -16,7 +16,12 @@ var CodePeekApp = {
     console.log("[DEBUG] CodePeekApp.init() called", new Date().toISOString());
     this.bindEvents();
     this.loadSettings();
-    this.refreshData();
+    // Defer initial data refresh to ensure content script injection and DOM ready
+    var self = this;
+    setTimeout(function () {
+      console.log("[DEBUG] Initial refreshData after delay");
+      self.refreshData();
+    }, 1500);
 
     // Auto-refresh when tab changes
     var self = this;
