@@ -8,7 +8,8 @@
     "tabs",
     "scripting",
     "downloads",
-    "sidePanel"
+    "sidePanel",
+    "storage"
   ],
   "host_permissions": [
     "http://*/*",
