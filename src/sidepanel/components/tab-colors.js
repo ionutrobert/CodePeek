@@ -83,7 +83,7 @@ var colorsTab = {
     var html =
       '<div class="grid grid-cols-5 gap-2.5 animate-in fade-in slide-in-from-bottom-4 duration-500">';
     for (var i = 0; i < colors.length; i++) {
-      var c = colors[i].value; // property is 'value' from extractor
+      var c = colors[i].color; // corrected property name
       html += '<div class="group cursor-pointer" data-color="' + c + '">';
       html +=
         '<div class="aspect-square rounded-xl border border-slate-100 dark:border-slate-800 shadow-sm transition-all group-hover:scale-110 group-hover:shadow-lg relative overflow-hidden" style="background-color:' +
@@ -215,7 +215,7 @@ var colorsTab = {
     var grays = [];
 
     for (var i = 0; i < colors.length; i++) {
-      var c = colors[i].value;
+      var c = colors[i].color;
       if (this.isGray(c)) grays.push(c);
       else brands.push(c);
     }
