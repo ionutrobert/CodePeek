@@ -4,27 +4,20 @@ A Chrome extension for inspecting CSS, colors, typography, and assets from any w
 
 ## Features
 
-- **Overview** - Page summary, link preview (Open Graph), typography, colors, contrast scanner
-- **Colors** - Extract all colors with one-click copy
-- **Typography** - Font families, sizes, weights analysis
-- **Assets** - Images, SVGs, background images
-- **Inspect Mode** - Click any element to view computed styles
-- **Rulers & Measurement**
-  - Place draggable rulers on the page with coordinate list
-  - Measure distance between two elements (edge-to-edge) with visual overlay
-- **Distance Lines** - See distances from element to its parent while inspecting
-- **Full-Page Screenshot** - Capture entire page with proper filename and sticky element handling
+- **Inspect Mode** - Hover and click elements to view computed styles, dimensions, and margins
+- **Distance Lines** - Visual dashed lines showing distance from element to its parent (toggleable)
+- **Rulers** - Place horizontal/vertical rulers on the page; drag to reposition; view coordinates in a scrollable list; unit conversion (px/rem)
+- **Measure Distance** - Select two elements to get edge-to-edge distance with visual line and label
+- **Full-Page Screenshot** - Capture entire page; filename includes site and page title; handles sticky/fixed elements
+- **Color & Typography Extraction** - Analyze colors, fonts, and assets from the current page
+- **Persistent Settings** - Toggle states (inspect, distance lines, context menu, continuous inspect) are saved across sessions
 
-## v0.2.0 Highlights
+## User Experience
 
-- New **Measure Distance** mode: select two elements to see precise edge-to-edge distance with highlights and labels
-- **Rulers** overhaul: drag to move, unit conversion (px/rem), Clear All, scrollable list
-- **Distance lines** toggle now persists and works correctly across sessions
-- **Continuous inspect** toggle moved to inspector panel and persisted
-- **Sidepanel close cleanup**: all overlays automatically turn off when closing the panel
-- **Context menu** toggle: control the info box during inspect
-- **Screenshot** improvements: filename uses site + page title; sticky/fixed elements hidden after first tile
-- Numerous UX refinements and bug fixes
+- Clean, minimal sidepanel interface
+- Intuitive toggles with visual feedback
+- Overlay management: all modes automatically disable when sidepanel is closed
+- Context menu (info tooltip) can be toggled on/off during inspect
 
 ## Installation
 
@@ -41,11 +34,6 @@ A Chrome extension for inspecting CSS, colors, typography, and assets from any w
 npm install
 npm run build   # Production build
 ```
-
-## Keyboard Shortcuts
-
-- `Ctrl+Shift+P` - Toggle side panel
-- `Ctrl+Shift+I` - Toggle inspect mode
 
 ## Files
 
