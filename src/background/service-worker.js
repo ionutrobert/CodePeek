@@ -86,47 +86,58 @@ chrome.runtime.onMessage.addListener(function (message, sender, sendResponse) {
     return true; // keep channel open
   }
 
-   // Messages FROM content script (sender.tab exists) -> forward to extension pages (side panel)
-  if (sender.tab) {
-    try {
-      chrome.runtime.sendMessage(message, function (response) {
-        try {
-          sendResponse({ received: true });
-        } catch (e) {
-          console.error("Error in forward callback:", e);
-        }
-      });
-    } catch (err) {
-      console.error("Error forwarding from content:", err);
-      // Still respond to content to prevent hangs
-      try { sendResponse({ received: false, error: err.message }); } catch (e2) {}
-    }
-    return true;
-  }
-
-  // Messages FROM extension page (side panel) -> forward to content script
-  if (message.type === "CAPTURE_FULL_PAGE") {
-    handleFullPageCapture(sendResponse);
-    return true;
-  }
-
-  if (message.type === "CAPTURE_VISIBLE_TAB") {
-    chrome.tabs.captureVisibleTab(null, { format: "png" }, function (dataUrl) {
-      if (chrome.runtime.lastError) {
-        try {
-          sendResponse({
-            success: false,
-            error: chrome.runtime.lastError.message,
-          });
-        } catch (e) {}
-      } else {
-        try {
-          sendResponse({ success: true, dataUrl: dataUrl });
-        } catch (e) {}
+  // Handle sidepanel close: disable inspect and measure in active tab
+  if (message.type === "SIDEPANEL_CLOSED") {
+    chrome.tabs.query({ active: true, currentWindow: true }, function(tabs) {
+      if (tabs && tabs[0]) {
+        chrome.tabs.sendMessage(tabs[0].id, { type: "DISABLE_INSPECT_AND_MEASURE" });
       }
     });
+    if (sendResponse) sendResponse({ success: true });
     return true;
   }
+
+   // Messages FROM extension page (side panel) -> handle screenshot actions first
+   if (message.type === "CAPTURE_FULL_PAGE") {
+     handleFullPageCapture(message, sendResponse);
+     return true;
+   }
+
+   if (message.type === "CAPTURE_VISIBLE_TAB") {
+     chrome.tabs.captureVisibleTab(null, { format: "png" }, function (dataUrl) {
+       if (chrome.runtime.lastError) {
+         try {
+           sendResponse({
+             success: false,
+             error: chrome.runtime.lastError.message,
+           });
+         } catch (e) {}
+       } else {
+         try {
+           sendResponse({ success: true, dataUrl: dataUrl });
+         } catch (e) {}
+       }
+     });
+     return true;
+   }
+
+   // Messages FROM content script (sender.tab exists) -> forward to extension pages (side panel)
+   if (sender.tab) {
+     try {
+       chrome.runtime.sendMessage(message, function (response) {
+         try {
+           sendResponse({ received: true });
+         } catch (e) {
+           console.error("Error in forward callback:", e);
+         }
+       });
+     } catch (err) {
+       console.error("Error forwarding from content:", err);
+       // Still respond to content to prevent hangs
+       try { sendResponse({ received: false, error: err.message }); } catch (e2) {}
+     }
+     return true;
+   }
 
    chrome.tabs.query({ active: true, currentWindow: true }, function (tabs) {
      if (tabs && tabs[0]) {
@@ -169,94 +180,148 @@ chrome.runtime.onMessage.addListener(function (message, sender, sendResponse) {
   }
 });
 
-function handleFullPageCapture(sendResponse) {
-  chrome.tabs.query({ active: true, currentWindow: true }, function (tabs) {
-    var tab = tabs[0];
-    if (!tab) {
+function handleFullPageCapture(message, sendResponse) {
+  var tabId = message && message.tabId;
+  
+  function startCapture(tab) {
+    // Generate filename for download
+    var filename = "fullpage.png";
+    if (tab && tab.title && tab.url) {
       try {
-        sendResponse({ success: false, error: "No active tab" });
+        var hostname = new URL(tab.url).hostname;
+        var title = tab.title.substring(0, 80).replace(/[\\/:*?"<>|]/g, "_");
+        if (hostname && title) filename = hostname + " - " + title + ".png";
       } catch (e) {}
-      return;
     }
 
-    // SCROLL TO TOP FIRST
-    chrome.tabs.sendMessage(
-      tab.id,
-      {
-        type: "SCROLL_TO",
-        payload: { x: 0, y: 0 },
-      },
-      function () {
-        // 1. Get dimensions
-        setTimeout(function () {
-          chrome.tabs.sendMessage(
-            tab.id,
-            { type: "GET_SCROLL_DIMENSIONS" },
-            function (dim) {
-              if (!dim || !dim.success) {
-                try {
-                  sendResponse({
-                    success: false,
-                    error: "Failed to get dimensions",
-                  });
-                } catch (e) {}
-                return;
-              }
-
-              var width = dim.data.viewportWidth;
-              var height = dim.data.height;
-              var scrollStep = dim.data.viewportHeight;
-              var currentScroll = 0;
-              var captures = [];
-
-              function captureNext() {
-                if (currentScroll >= height) {
-                  try {
-                    sendResponse({ success: true, count: captures.length });
-                  } catch (e) {}
+    chrome.tabs.sendMessage(tab.id, { type: "HIDE_SCROLLBARS" }, { frameId: 0 }, function() {
+      chrome.tabs.sendMessage(
+        tab.id,
+        { type: "SCROLL_TO", payload: { x: 0, y: 0 } },
+        { frameId: 0 },
+        function() {
+          setTimeout(function() {
+            chrome.tabs.sendMessage(
+              tab.id,
+              { type: "GET_SCROLL_DIMENSIONS" },
+              { frameId: 0 },
+              function(dim) {
+                if (!dim || !dim.success) {
+                  try { sendResponse({ success: false, error: "Failed to get dimensions" }); } catch(e) {}
                   return;
                 }
 
-                chrome.tabs.sendMessage(
-                  tab.id,
-                  {
-                    type: "SCROLL_TO",
-                    payload: { x: 0, y: currentScroll },
-                  },
-                  function () {
-                    setTimeout(function () {
-                      chrome.tabs.captureVisibleTab(
-                        null,
-                        { format: "png" },
-                        function (dataUrl) {
-                          if (dataUrl) captures.push(dataUrl);
+                var totalWidth = dim.data.width;
+                var totalHeight = dim.data.height;
+                var vw = dim.data.viewportWidth;
+                var vh = dim.data.viewportHeight;
+                var cols = Math.ceil(totalWidth / vw);
+                var rows = Math.ceil(totalHeight / vh);
 
-                          // If it's the first capture, initiate download for the demo
-                          if (currentScroll === 0) {
-                            chrome.downloads.download({
-                              url: dataUrl,
-                              filename:
-                                "full-screenshot-" + Date.now() + ".png",
-                              saveAs: false,
-                            });
-                          }
+                var captures = [];
+                var currentRow = 0;
+                var currentCol = 0;
 
-                          currentScroll += scrollStep;
-                          captureNext();
-                        }
-                      );
-                    }, 300); // Wait for rendering after scroll
-                  }
-                );
+                 function captureNext() {
+                    if (currentRow >= rows) {
+                      chrome.tabs.sendMessage(tab.id, { type: "SHOW_STICKY_FIXED" }, { frameId: 0 });
+                      chrome.tabs.sendMessage(tab.id, { type: "SHOW_SCROLLBARS" }, { frameId: 0 });
+                      try {
+                        sendResponse({
+                          success: true,
+                          captures: captures,
+                          totalWidth: totalWidth,
+                          totalHeight: totalHeight,
+                          filename: filename
+                        });
+                      } catch(e) {}
+                      return;
+                    }
+
+                   var x = currentCol * vw;
+                   var y = currentRow * vh;
+
+                   chrome.tabs.sendMessage(
+                     tab.id,
+                     { type: "SCROLL_TO", payload: { x: x, y: y } },
+                     { frameId: 0 },
+                     function() {
+                        setTimeout(function() {
+                          chrome.tabs.captureVisibleTab(
+                            tab.id,
+                            { format: "png" },
+                            function(dataUrl) {
+                              console.log('[DEBUG] captureVisibleTab at', x, y, 'dataUrl?', !!dataUrl);
+                               if (dataUrl) {
+                                 captures.push({
+                                   dataUrl: dataUrl,
+                                   offsetX: x,
+                                   offsetY: y
+                                 });
+                               } else {
+                                 console.warn('[DEBUG] captureVisibleTab returned null/empty');
+                               }
+
+                              // If this was the first capture, hide sticky/fixed elements before continuing
+                              if (x === 0 && y === 0) {
+                                chrome.tabs.sendMessage(tab.id, { type: "HIDE_STICKY_FIXED" }, { frameId: 0 }, function() {
+                                  currentCol++;
+                                  if (currentCol >= cols) {
+                                    currentCol = 0;
+                                    currentRow++;
+                                  }
+                                  captureNext();
+                                });
+                              } else {
+                                currentCol++;
+                                if (currentCol >= cols) {
+                                  currentCol = 0;
+                                  currentRow++;
+                                }
+                                captureNext();
+                              }
+                           }
+                         );
+                       }, 200); // render delay
+                     }
+                   );
+                 }
+
+                captureNext();
               }
+            );
+          }, 500);
+        }
+      );
+    });
+  }
 
-              captureNext();
-            }
-          );
-        }, 500); // Initial wait
+  if (tabId) {
+    chrome.tabs.get(tabId, function(tab, getError) {
+      if (getError || !tab) {
+        // Fallback to active tab
+        chrome.tabs.query({ active: true, currentWindow: true }, function(tabs) {
+          var tab = tabs[0];
+          if (!tab) {
+            try { sendResponse({ success: false, error: "No active tab" }); } catch(e) {}
+            return;
+          }
+          startCapture(tab);
+        });
+        return;
       }
-    );
-  });
+      startCapture(tab);
+    });
+  } else {
+    chrome.tabs.query({ active: true, currentWindow: true }, function(tabs) {
+      var tab = tabs[0];
+      if (!tab) {
+        try { sendResponse({ success: false, error: "No active tab" }); } catch(e) {}
+        return;
+      }
+      startCapture(tab);
+    });
+  }
 }
 
 function handleDownload(payload, sendResponse) {

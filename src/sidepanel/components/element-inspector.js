@@ -72,15 +72,31 @@ var elementInspector = {
       "</span>";
     html += "</div>";
 
-    // Hover Toggle Mockup
-    html += '<div class="flex items-center gap-2 pt-2">';
-    html +=
-      '<div id="context-mockup" class="w-8 h-4 bg-slate-200 dark:bg-slate-700 rounded-full relative cursor-pointer"><div class="absolute left-0.5 top-0.5 w-3 h-3 bg-white rounded-full shadow-sm transition-transform"></div></div>';
-    html +=
-      '<span class="text-[10px] font-medium text-slate-400 dark:text-slate-500 uppercase tracking-tighter">Context menu while hovering</span></div>';
-    html += "</div>";
+// Hover Toggle Mockup
+  html += '<div class="flex items-center gap-2 pt-2">';
+  html +=
+  '<div id="context-mockup" class="w-8 h-4 bg-slate-200 dark:bg-slate-700 rounded-full relative cursor-pointer"><div class="absolute left-0.5 top-0.5 w-3 h-3 bg-white rounded-full shadow-sm transition-transform"></div></div>';
+  html +=
+  '<span class="text-[10px] font-medium text-slate-400 dark:text-slate-500 uppercase tracking-tighter">Context menu while hovering</span></div>';
+  html += "</div>";
 
-    // Premium Box Model Visualizer with Numbers
+  // Distance Lines Toggle
+  html += '<div class="flex items-center gap-2 pt-2">';
+  html +=
+  '<div id="distance-lines-toggle" class="w-8 h-4 bg-slate-200 dark:bg-slate-700 rounded-full relative cursor-pointer"><div class="absolute left-0.5 top-0.5 w-3 h-3 bg-white rounded-full shadow-sm transition-transform"></div></div>';
+  html +=
+  '<span class="text-[10px] font-medium text-slate-400 dark:text-slate-500 uppercase tracking-tighter">Show distance lines</span></div>';
+  html += "</div>";
+
+  // Continuous Inspect Toggle
+  html += '<div class="flex items-center gap-2 pt-2">';
+  html +=
+  '<div id="inspector-continuous-toggle" class="w-8 h-4 bg-slate-200 dark:bg-slate-700 rounded-full relative cursor-pointer"><div class="absolute left-0.5 top-0.5 w-3 h-3 bg-white rounded-full shadow-sm transition-transform"></div></div>';
+  html +=
+  '<span class="text-[10px] font-medium text-slate-400 dark:text-slate-500 uppercase tracking-tighter">Continuous inspect</span></div>';
+  html += "</div>";
+
+  // Premium Box Model Visualizer with Numbers
     html +=
       '<div class="relative py-12 flex items-center justify-center bg-slate-50/50 dark:bg-slate-900/50 rounded-3xl mt-4">';
     // Margin Box
@@ -265,17 +281,113 @@ var elementInspector = {
       };
     }
 
-    var mockup = document.getElementById("context-mockup");
-    if (mockup) {
-      mockup.onclick = function () {
-        var thumb = this.querySelector("div");
-        var isActive = this.classList.toggle("bg-brand-500");
-        this.classList.toggle("bg-slate-200", !isActive);
-        thumb.style.transform = isActive ? "translateX(16px)" : "translateX(0)";
-      };
-    }
+var contextToggle = document.getElementById("context-mockup");
+  if (contextToggle && typeof chrome !== "undefined" && chrome.storage) {
+    chrome.storage.local.get(['contextMenuEnabled'], function(result) {
+      var isActive = result.contextMenuEnabled !== undefined ? result.contextMenuEnabled : true;
+      // Set initial visual state
+      if (isActive) {
+        contextToggle.classList.add("bg-brand-500");
+        contextToggle.classList.remove("bg-slate-200", "dark:bg-slate-700");
+      } else {
+        contextToggle.classList.remove("bg-brand-500");
+        contextToggle.classList.add("bg-slate-200", "dark:bg-slate-700");
+      }
+      var thumb = contextToggle.querySelector("div");
+      if (thumb) thumb.style.transform = isActive ? "translateX(16px)" : "";
+      
+      // Send initial state to content script
+      if (typeof messaging !== 'undefined') {
+        messaging.setContextMenuVisible(isActive);
+      }
+      
+      // Bind click handler (once)
+      if (!contextToggle.hasAttribute('data-bound')) {
+        contextToggle.onclick = function () {
+          var thumb = this.querySelector("div");
+          var newActive = this.classList.toggle("bg-brand-500");
+          this.classList.toggle("bg-slate-200", !newActive);
+          this.classList.toggle("dark:bg-slate-700", !newActive);
+          thumb.style.transform = newActive ? "translateX(16px)" : "";
+          // Persist state
+          chrome.storage.local.set({ contextMenuEnabled: newActive });
+          if (typeof messaging !== 'undefined') {
+            messaging.setContextMenuVisible(newActive);
+          }
+        };
+        contextToggle.setAttribute('data-bound', 'true');
+      }
+    });
+  }
 
-    container.querySelectorAll(".inspect-copy-btn").forEach(function (btn) {
+  // Distance Lines Toggle - send message to content script, persist state
+  var distanceToggle = document.getElementById("distance-lines-toggle");
+  if (distanceToggle && typeof messaging !== "undefined" && typeof chrome !== "undefined" && chrome.storage) {
+    // Load saved state (default true)
+    chrome.storage.local.get(['distanceLinesEnabled'], function(result) {
+      var isActive = result.distanceLinesEnabled !== undefined ? result.distanceLinesEnabled : true;
+      // Set initial visual state
+      if (isActive) {
+        distanceToggle.classList.add("bg-brand-500");
+        distanceToggle.classList.remove("bg-slate-200", "dark:bg-slate-700");
+      } else {
+        distanceToggle.classList.remove("bg-brand-500");
+        distanceToggle.classList.add("bg-slate-200", "dark:bg-slate-700");
+      }
+      var thumb = distanceToggle.querySelector("div");
+      if (thumb) thumb.style.transform = isActive ? "translateX(16px)" : "";
+      
+      // Bind click handler (once)
+      if (!distanceToggle.hasAttribute('data-bound')) {
+        distanceToggle.onclick = function () {
+          var thumb = this.querySelector("div");
+          var newActive = this.classList.toggle("bg-brand-500");
+          this.classList.toggle("bg-slate-200", !newActive);
+          this.classList.toggle("dark:bg-slate-700", !newActive);
+          thumb.style.transform = newActive ? "translateX(16px)" : "";
+          // Persist state
+          chrome.storage.local.set({ distanceLinesEnabled: newActive });
+          messaging.setDistanceLinesVisible(newActive, function (response) {
+            if (typeof console !== "undefined" && console.debug)
+              console.debug("[DEBUG] Distance lines toggle:", newActive, response);
+          });
+        };
+        distanceToggle.setAttribute('data-bound', 'true');
+      }
+    });
+  }
+
+  // Continuous Inspect Toggle - toggle CodePeekApp.continuousInspect and persist
+  var continuousToggle = document.getElementById("inspector-continuous-toggle");
+  if (continuousToggle && typeof CodePeekApp !== "undefined" && typeof chrome !== "undefined" && chrome.storage) {
+    // Initialize from CodePeekApp.continuousInspect (already loaded from storage)
+    if (CodePeekApp.continuousInspect) {
+      continuousToggle.classList.remove("bg-slate-200", "dark:bg-slate-700");
+      continuousToggle.classList.add("bg-brand-500");
+      continuousToggle.querySelector("div").style.transform = "translateX(16px)";
+    }
+    continuousToggle.onclick = function () {
+      var thumb = this.querySelector("div");
+      var isActive = this.classList.toggle("bg-brand-500");
+      this.classList.toggle("bg-slate-200", !isActive);
+      thumb.style.transform = isActive ? "translateX(16px)" : "translateX(0)";
+      CodePeekApp.continuousInspect = isActive;
+      // Persist
+      chrome.storage.local.set({ continuousInspect: isActive });
+      if (typeof console !== "undefined" && console.debug)
+        console.debug("[DEBUG] Continuous inspect:", isActive);
+      // Update the utility menu toggle to match
+      var utilityTrack = document.getElementById("continuous-track");
+      var utilityThumb = document.getElementById("continuous-thumb");
+      if (utilityTrack && utilityThumb) {
+        utilityTrack.classList.toggle("bg-brand-500", isActive);
+        utilityTrack.classList.toggle("bg-slate-200", !isActive);
+        utilityThumb.style.transform = isActive ? "translateX(16px)" : "translateX(0)";
+      }
+    };
+  }
+
+  container.querySelectorAll(".inspect-copy-btn").forEach(function (btn) {
       btn.onclick = function () {
         if (typeof CodePeekApp !== "undefined")
           CodePeekApp.copyText(this.dataset.value);

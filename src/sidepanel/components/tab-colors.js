@@ -2,6 +2,25 @@
 var colorsTab = {
   selectedColor: null,
 
+  normalizeColor: function(color) {
+    if (!color) return '#000000';
+    color = color.trim();
+    if (color.startsWith('#')) {
+      if (color.length === 4) {
+        return '#' + color[1] + color[1] + color[2] + color[2] + color[3] + color[3];
+      }
+      return color;
+    }
+    var rgbMatch = color.match(/rgba?\(\s*(\d+)\s*,\s*(\d+)\s*,\s*(\d+)/);
+    if (rgbMatch) {
+      var r = parseInt(rgbMatch[1], 10);
+      var g = parseInt(rgbMatch[2], 10);
+      var b = parseInt(rgbMatch[3], 10);
+      return '#' + r.toString(16).padStart(2, '0') + g.toString(16).padStart(2, '0') + b.toString(16).padStart(2, '0');
+    }
+    return '#000000';
+  },
+
    render: function (data) {
      var self = this;
      var container = document.getElementById("tab-colors");
@@ -54,20 +73,21 @@ var colorsTab = {
        container.appendChild(harmSection);
      }
 
-     // Attach click listeners to color swatches
-     setTimeout(function() {
-       var swatches = document.querySelectorAll("#colors-grid .group");
-       var self = self;
-       swatches.forEach(function(swatch) {
-         swatch.onclick = function() {
-           var hex = this.getAttribute('data-color');
-           // Remove selected class from others
-           swatches.forEach(s => s.classList.remove('ring-2', 'ring-brand-500'));
-           self.selectedColor = hex;
-           self.renderHarmonies(hex);
-         };
-       });
-     }, 50);
+      // Attach click listeners to color swatches
+      setTimeout(function() {
+        var swatches = document.querySelectorAll("#colors-grid .group");
+        console.log('[DEBUG] Attaching swatch click handlers, count:', swatches.length);
+        swatches.forEach(function(swatch) {
+          swatch.onclick = function() {
+            var hex = this.getAttribute('data-color');
+            console.log('[DEBUG] Swatch clicked, hex:', hex);
+            swatches.forEach(s => s.classList.remove('ring-2', 'ring-brand-500'));
+            self.selectedColor = hex;
+            self.renderHarmonies(hex);
+            console.log('[DEBUG] renderHarmonies called');
+          };
+        });
+      }, 50);
    },
 
   renderAll: function (colors) {
@@ -83,11 +103,12 @@ var colorsTab = {
     var html =
       '<div class="grid grid-cols-5 gap-2.5 animate-in fade-in slide-in-from-bottom-4 duration-500">';
     for (var i = 0; i < colors.length; i++) {
-      var c = colors[i].color; // corrected property name
+      var rawColor = colors[i].color;
+      var c = this.normalizeColor(rawColor);
       html += '<div class="group cursor-pointer" data-color="' + c + '">';
       html +=
         '<div class="aspect-square rounded-xl border border-slate-100 dark:border-slate-800 shadow-sm transition-all group-hover:scale-110 group-hover:shadow-lg relative overflow-hidden" style="background-color:' +
-        c +
+        rawColor +
         '">';
       html +=
         '<div class="absolute inset-0 bg-black/0 group-hover:bg-black/5 transition-colors"></div>';
@@ -138,15 +159,18 @@ var colorsTab = {
     var html = '<h4 class="text-sm font-black text-slate-700 dark:text-slate-300 mb-3">Palette Generator</h4>';
     html += '<div class="grid grid-cols-2 gap-4">';
 
-    // Helper to render scheme
+    // Helper to render scheme with copy buttons
     function renderScheme(title, colorsArr) {
       var h = '<div class="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl p-3">';
       h += '<div class="text-[10px] font-bold text-slate-500 uppercase mb-2">' + title + '</div>';
       h += '<div class="flex gap-2">';
       colorsArr.forEach(function(c) {
-        h += '<div class="flex-1">';
-        h += '<div class="aspect-square rounded-lg shadow-sm" style="background-color:' + c + '"></div>';
-        h += '<div class="text-[9px] font-mono mt-1 truncate">' + c + '</div>';
+        h += '<div class="flex-1 flex flex-col items-center">';
+        h += '<div class="aspect-square rounded-lg shadow-sm w-full cursor-pointer group-hover:scale-105 transition-transform" style="background-color:' + c + '"></div>';
+        h += '<div class="text-[9px] font-mono mt-1 truncate w-full text-center">' + c + '</div>';
+        h += '<button class="copy-hex mt-1 text-[8px] text-slate-500 hover:text-brand-600 font-bold uppercase tracking-wider flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity" data-hex="' + c + '">';
+        h += '<svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z"/></svg>';
+        h += 'Copy</button>';
         h += '</div>';
       });
       h += '</div></div>';
@@ -160,6 +184,28 @@ var colorsTab = {
 
     html += '</div>';
     container.innerHTML = html;
+
+    // Attach copy handlers
+    var self = this;
+    setTimeout(function() {
+      var copyBtns = container.querySelectorAll('.copy-hex');
+      copyBtns.forEach(function(btn) {
+        btn.onclick = function() {
+          var hex = this.getAttribute('data-hex');
+          navigator.clipboard.writeText(hex).then(function() {
+            var original = btn.textContent;
+            btn.textContent = 'Copied!';
+            btn.classList.add('text-green-600');
+            setTimeout(function() {
+              btn.textContent = original;
+              btn.classList.remove('text-green-600');
+            }, 1500);
+          }).catch(function(err) {
+            console.error('Copy failed:', err);
+          });
+        };
+      });
+    }, 50);
   },
 
   // Color conversion utilities
@@ -215,9 +261,10 @@ var colorsTab = {
     var grays = [];
 
     for (var i = 0; i < colors.length; i++) {
-      var c = colors[i].color;
-      if (this.isGray(c)) grays.push(c);
-      else brands.push(c);
+      var rawColor = colors[i].color;
+      var c = this.normalizeColor(rawColor);
+      if (this.isGray(rawColor)) grays.push({ raw: rawColor, hex: c });
+      else brands.push({ raw: rawColor, hex: c });
     }
 
     var html =
@@ -243,12 +290,14 @@ var colorsTab = {
     html += '<div class="grid grid-cols-3 gap-3">';
 
     for (var i = 0; i < list.length; i++) {
-      var c = list[i];
+      var item = list[i];
+      var c = item.hex;
+      var rawColor = item.raw;
       html +=
         '<div class="bg-white dark:bg-slate-900 border border-slate-100 dark:border-slate-800 rounded-2xl p-2.5 shadow-sm hover:border-brand-200 transition-all hover:-translate-y-1">';
       html +=
         '<div class="aspect-square rounded-xl mb-3 shadow-inner border border-black/5" style="background-color:' +
-        c +
+        rawColor +
         '"></div>';
       html +=
         '<div class="text-[10px] font-black text-slate-900 dark:text-white font-mono tracking-tighter uppercase mb-0.5 truncate">' +

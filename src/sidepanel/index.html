@@ -21,10 +21,10 @@
     <!-- Header -->
     <!-- Header -->
     <header class="h-[64px] flex items-center justify-between px-5 border-b border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-950/80 backdrop-blur-xl sticky top-0 z-40" role="banner">
-       <div class="flex items-center gap-3">
-         <h1 class="text-[15px] font-black bg-gradient-to-r from-brand-600 to-brand-400 bg-clip-text text-transparent uppercase tracking-tighter">Code Peek</h1>
-         <span id="mode-badge" class="px-2 py-1 rounded text-xs font-bold bg-purple-100 text-purple-700 dark:bg-purple-900 dark:text-purple-300">[DESIGN]</span>
-       </div>
+        <div class="flex items-center gap-3">
+          <h1 class="text-[15px] font-black bg-gradient-to-r from-brand-700 to-brand-500 bg-clip-text text-transparent uppercase tracking-tighter drop-shadow-sm">Code Peek</h1>
+          <button id="mode-badge" type="button" class="px-2 py-1 rounded text-xs font-bold bg-purple-100 text-purple-700 dark:bg-purple-900 dark:text-purple-300 cursor-pointer hover:bg-purple-200 dark:hover:bg-purple-800 active:scale-95 transition-all focus:outline-none focus:ring-2 focus:ring-brand-500" title="Switch to Code Mode">[DESIGN]</button>
+        </div>
 
       <div class="flex items-center gap-2">
         <button
@@ -49,24 +49,18 @@
                  <div class="absolute left-0.5 top-0.5 w-4 h-4 bg-white rounded-full shadow-sm transition-transform" id="dark-mode-thumb"></div>
                </div>
              </button>
-             <div class="h-px bg-slate-100 dark:bg-slate-800 my-1.5 mx-2"></div>
-             
-              <button class="w-full flex items-center justify-between px-4 py-2.5 text-xs font-black text-slate-600 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors text-left uppercase tracking-widest cursor-pointer" id="continuous-inspect-toggle">
-                <span>Continuously Inspect</span>
-                <div class="w-9 h-5 bg-slate-200 dark:bg-slate-700 rounded-full relative transition-colors" id="continuous-track">
-                  <div class="absolute left-0.5 top-0.5 w-4 h-4 bg-white rounded-full shadow-sm transition-transform" id="continuous-thumb"></div>
-                </div>
-              </button>
-              
-              <div class="h-px bg-slate-100 dark:bg-slate-800 my-1.5 mx-2"></div>
-              
-              <div class="px-4 py-2">
-                <label class="text-xs font-black text-slate-500 uppercase tracking-widest block mb-1">Mode</label>
-                <select id="mode-select" class="w-full px-3 py-2 text-sm rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-brand-500">
-                  <option value="designer">Designer</option>
-                  <option value="developer">Developer</option>
-                </select>
-              </div>
+<div class="h-px bg-slate-100 dark:bg-slate-800 my-1.5 mx-2"></div>
+
+  <!-- Moved to inspector panel - hidden from utility menu -->
+  <button class="hidden w-full flex items-center justify-between px-4 py-2.5 text-xs font-black text-slate-600 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors text-left uppercase tracking-widest cursor-pointer" id="continuous-inspect-toggle">
+    <span>Continuously Inspect</span>
+    <div class="w-9 h-5 bg-slate-200 dark:bg-slate-700 rounded-full relative transition-colors" id="continuous-track">
+      <div class="absolute left-0.5 top-0.5 w-4 h-4 bg-white rounded-full shadow-sm transition-transform" id="continuous-thumb"></div>
+    </div>
+  </button>
+
+  <div class="h-px bg-slate-100 dark:bg-slate-800 my-1.5 mx-2"></div>
+              <!-- Mode switching now done via badge button in header -->
              <button class="w-full px-4 py-2.5 text-xs font-black text-slate-600 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors text-left uppercase tracking-widest" id="reload-extension-btn">Reload Extension</button>
              <button class="w-full px-4 py-2.5 text-xs font-black text-slate-600 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors text-left uppercase tracking-widest" id="screenshot-btn">Full Screenshot</button>
              <button class="w-full px-4 py-2.5 text-xs font-black text-slate-600 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors text-left uppercase tracking-widest" id="export-all-btn">Export Config</button>
@@ -118,25 +112,27 @@
       <div id="tab-colors" class="tab-content hidden p-4" role="tabpanel">
       </div>
 
-      <!-- Typography Tab -->
-      <div id="tab-typography" class="tab-content hidden p-4" role="tabpanel">
-        <div id="typography-content" class="space-y-4"></div>
-      </div>
+       <!-- Typography Tab -->
+       <div id="tab-typography" class="tab-content hidden p-4" role="tabpanel">
+         <div id="typography-content" class="space-y-4"></div>
+       </div>
 
-      <!-- Assets Tab -->
-      <div id="tab-assets" class="tab-content hidden p-0" role="tabpanel">
-        <div id="assets-content" class="w-full"></div>
-      </div>
+       <!-- Assets Tab -->
+       <div id="tab-assets" class="tab-content hidden p-4" role="tabpanel">
+         <div id="assets-content"></div>
+       </div>
+
+     <!-- Rulers Tab -->
+    <div id="tab-rulers" class="tab-content hidden p-4" role="tabpanel">
+      <div id="rulers-content" class="space-y-6"></div>
+    </div>
 
        <!-- Inspect Tab -->
        <div id="tab-inspect" class="tab-content hidden p-4" role="tabpanel">
          <div id="inspect-content"></div>
        </div>
 
-       <!-- Rulers Tab (Designer) -->
-       <div id="tab-rulers" class="tab-content hidden p-4" role="tabpanel">
-         <div id="rulers-content" class="space-y-4"></div>
-       </div>
+
 
        <!-- Tech Stack Tab (Developer) -->
        <div id="tab-tech-stack" class="tab-content hidden p-4" role="tabpanel">
@@ -159,12 +155,16 @@
        <div id="tab-bar" class="flex items-center justify-around w-full"></div>
      </nav>
 
-    <script src="utils/messaging.js?v=2"></script>
-    <script src="components/tab-overview.js?v=2"></script>
-    <script src="components/tab-colors.js?v=2"></script>
-    <script src="components/tab-typography.js?v=2"></script>
-    <script src="components/tab-assets.js?v=2"></script>
-    <script src="components/element-inspector.js?v=2"></script>
-    <script src="app.js?v=2"></script>
+     <script src="utils/messaging.js?v=2"></script>
+     <script src="components/tab-overview.js?v=2"></script>
+     <script src="components/tab-colors.js?v=2"></script>
+     <script src="components/tab-typography.js?v=2"></script>
+     <script src="components/tab-assets.js?v=2"></script>
+     <script src="components/element-inspector.js?v=2"></script>
+     <script src="components/tab-rulers.js?v=2"></script>
+     <script src="components/tab-tech-stack.js?v=2"></script>
+     <script src="components/tab-audit.js?v=2"></script>
+     <script src="components/tab-code-snippets.js?v=2"></script>
+     <script src="app.js?v=2"></script>
   </body>
 </html>

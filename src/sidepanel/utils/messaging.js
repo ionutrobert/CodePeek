@@ -25,43 +25,45 @@ var messaging = {
        
        function attempt() {
          attempts++;
-         chrome.tabs.sendMessage(tabId, {
-           type: type,
-           payload: payload || {}
-         }, function(response) {
-           if (chrome.runtime.lastError) {
-             var err = chrome.runtime.lastError.message;
-             
-             // Suppress expected errors for chrome:// URLs and protected pages
-             if (err.indexOf('Cannot access a chrome:// URL') !== -1 ||
-                 err.indexOf('Receiving end does not exist') !== -1) {
-               if (callback) callback({ success: false, error: err });
-               return;
-             }
-             
-             if (console && console.debug) console.debug('[DEBUG] Message error (attempt ' + attempts + '):', err);
-             
-             // If content script not present, try to inject and retry (but only once)
-             if (err.indexOf('Receiving end does not exist') !== -1 && attempts < maxAttempts) {
-               chrome.runtime.sendMessage({
-                 type: 'INJECT_CONTENT_SCRIPT',
-                 tabId: tabId
-               }, function(injResp) {
-                 if (chrome.runtime.lastError) {
-                   if (console && console.debug) console.debug('[DEBUG] Injection request failed:', chrome.runtime.lastError.message);
-                   if (callback) callback({ success: false, error: chrome.runtime.lastError.message });
-                   return;
-                 }
-                 setTimeout(function() {
-                   attempts = 0;
-                   attempt();
-                 }, 300);
-               });
-               return;
-             }
-             
-             if (callback) callback({ success: false, error: err });
-           } else if (callback) {
+        chrome.tabs.sendMessage(tabId, {
+            type: type,
+            payload: payload || {}
+          }, { frameId: 0 }, function(response) {
+            if (chrome.runtime.lastError) {
+              var err = chrome.runtime.lastError.message;
+              
+              // Suppress expected errors for chrome:// URLs (protected pages)
+              if (err.indexOf('Cannot access a chrome:// URL') !== -1) {
+                if (callback) callback({ success: false, error: err });
+                return;
+              }
+              
+              if (console && console.debug) console.debug('[DEBUG] Message error (attempt ' + attempts + '):', err);
+              
+              // If content script not present, try to inject and retry (but only once)
+              if (err.indexOf('Receiving end does not exist') !== -1 && attempts < maxAttempts) {
+                console.log('[DEBUG] Content script not present. Requesting injection for tab', tabId);
+                chrome.runtime.sendMessage({
+                  type: 'INJECT_CONTENT_SCRIPT',
+                  tabId: tabId
+                }, function(injResp) {
+                  if (chrome.runtime.lastError) {
+                    console.error('[DEBUG] Injection request failed:', chrome.runtime.lastError.message);
+                    if (callback) callback({ success: false, error: chrome.runtime.lastError.message });
+                    return;
+                  }
+                  console.log('[DEBUG] Injection successful. Retrying original message after delay...');
+                  setTimeout(function() {
+                    attempts = 0;
+                    attempt();
+                  }, 1500); // Wait longer for content script to be ready
+                });
+                return;
+              }
+              
+                if (callback) callback({ success: false, error: err });
+              }
+             else if (callback) {
              clearTimeout(timeoutId);
              callback(response || { success: true });
            }
@@ -108,11 +110,27 @@ var messaging = {
     this.sendMessage('STOP_INSPECT_MODE', {}, callback);
   },
   
-  downloadFile: function(filename, content, mimeType, callback) {
-    this.sendMessage('DOWNLOAD_FILE', {
-      filename: filename,
-      content: content,
-      mimeType: mimeType
-    }, callback);
-  }
-};
+   downloadFile: function(filename, content, mimeType, callback) {
+     this.sendMessage('DOWNLOAD_FILE', {
+       filename: filename,
+       content: content,
+       mimeType: mimeType
+     }, callback);
+   },
+   
+   toggleRulers: function(enabled, unit, callback) {
+     this.sendMessage('TOGGLE_RULERS', { enabled: enabled, unit: unit }, callback);
+   },
+   
+updateRulerUnit: function(unit, callback) {
+    this.sendMessage('UPDATE_RULER_UNIT', { unit: unit }, callback);
+  },
+
+   setDistanceLinesVisible: function(visible, callback) {
+     this.sendMessage('SET_DISTANCE_LINES_VISIBLE', { visible: visible }, callback);
+   },
+
+   setContextMenuVisible: function(visible, callback) {
+     this.sendMessage('SET_CONTEXT_MENU_VISIBLE', { visible: visible }, callback);
+   }
+ };

@@ -11,6 +11,10 @@ var overviewTab = {
   load: function () {
     console.log("Loading overview tab...");
     var self = this;
+    var container = document.getElementById("tab-overview");
+    if (container) {
+      container.innerHTML = '<div class="space-y-6 pb-6"><div class="flex items-center justify-between mb-4"><div class="h-8 w-32 bg-slate-200 dark:bg-slate-800 rounded animate-pulse"></div><div class="w-20 h-8 bg-slate-200 dark:bg-slate-800 rounded animate-pulse"></div></div><div class="px-1 mb-6"><div class="h-7 w-3/4 bg-slate-200 dark:bg-slate-800 rounded animate-pulse mb-2"></div><div class="h-4 w-1/2 bg-slate-200 dark:bg-slate-800 rounded animate-pulse"></div></div><div class="grid grid-cols-2 gap-3 mb-6"><div class="h-20 bg-slate-200 dark:bg-slate-800 rounded-2xl animate-pulse"></div><div class="h-20 bg-slate-200 dark:bg-slate-800 rounded-2xl animate-pulse"></div></div><div class="bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-4 mb-6"><div class="h-5 w-1/3 bg-slate-200 dark:bg-slate-800 rounded animate-pulse mb-4"></div><div class="space-y-2"><div class="h-4 w-full bg-slate-200 dark:bg-slate-800 rounded animate-pulse"></div><div class="h-4 w-5/6 bg-slate-200 dark:bg-slate-800 rounded animate-pulse"></div></div></div></div>';
+    }
 
     // 1. Initial Scan
     messaging.extractAll(function (response) {
@@ -388,11 +392,25 @@ var overviewTab = {
     }
   },
 
-  renderError: function () {
-    var list = document.getElementById("stylesheets-list");
-    if (list)
-      list.innerHTML =
-        '<div class="text-slate-400 text-xs text-center py-4">Failed to load data</div>';
+  renderError: function (msg) {
+    var container = document.getElementById("tab-overview");
+    if (container) {
+      var errorMsg = msg ? '<div class="text-sm text-slate-500 mb-4">' + this.escapeHtml(msg) + '</div>' : '';
+      container.innerHTML =
+        '<div class="flex flex-col items-center justify-center py-20 text-slate-600 dark:text-slate-300">' +
+        '<div class="text-xl font-black mb-4">Failed to load data</div>' +
+        errorMsg +
+        '<button id="retry-load" class="px-6 py-2 rounded-xl bg-brand-500 text-white font-bold hover:bg-brand-600 transition-colors shadow-sm active:scale-95">Retry</button>' +
+        '</div>';
+    }
+    var retryBtn = document.getElementById("retry-load");
+    if (retryBtn) {
+      retryBtn.onclick = function() {
+        if (typeof CodePeekApp !== "undefined" && CodePeekApp.refreshData) {
+          CodePeekApp.refreshData();
+        }
+      };
+    }
   },
 
   escapeHtml: function (str) {

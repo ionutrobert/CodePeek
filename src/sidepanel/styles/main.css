@@ -129,6 +129,20 @@
   border-color: #334155 !important;
 }
 
+/* Contrast fixes to meet WCAG AA */
+/* Light mode: ensure muted text colors have sufficient contrast on light backgrounds */
+body:not(.dark-mode) .text-slate-400,
+body:not(.dark-mode) .text-slate-500,
+body:not(.dark-mode) .text-slate-300 {
+  color: var(--slate-600) !important;
+}
+
+/* Dark mode: ensure text-slate-500 (including dark: variant) is light enough on dark backgrounds */
+.dark-mode .text-slate-500,
+.dark-mode .dark\:text-slate-500 {
+  color: var(--slate-300) !important;
+}
+
 .dark-mode .color-subtab-button:not(.bg-white) {
   color: #94A3B8 !important;
 }

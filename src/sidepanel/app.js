@@ -1,4 +1,25 @@
 // Sidepanel App - Premium Lavender Design System (ES5)
+
+// Find the web content tab in the current window (exclude extension pages)
+function findContentTab(callback) {
+  if (typeof chrome === 'undefined' || !chrome.tabs || !chrome.tabs.query) {
+    if (callback) callback(null);
+    return;
+  }
+  chrome.tabs.query({ currentWindow: true }, function(tabs) {
+    var contentTab = null;
+    for (var i = 0; i < tabs.length; i++) {
+      var t = tabs[i];
+      var url = t.url || '';
+      if (url.startsWith('http://') || url.startsWith('https://') || url.startsWith('file://')) {
+        contentTab = t;
+        break;
+      }
+    }
+    callback(contentTab);
+  });
+}
+
 var CodePeekApp = {
   activeTab: "overview",
   isInspecting: false,
@@ -8,7 +29,7 @@ var CodePeekApp = {
   colorSubtab: "all", // 'all' or 'categories' for colors tab
   mode: "designer", // 'designer' or 'developer'
   tabsByMode: {
-    designer: ["overview", "colors", "typography", "rulers", "inspect"],
+    designer: ["overview", "colors", "typography", "assets", "rulers", "inspect"],
     developer: ["overview", "tech-stack", "code-snippets", "audit", "inspect"]
   },
 
@@ -110,17 +131,15 @@ var CodePeekApp = {
       };
     }
 
-    // Mode switch via dropdown
-    var modeSelect = document.getElementById("mode-select");
-    if (modeSelect) {
-      modeSelect.addEventListener("change", function() {
-        var newMode = this.value;
-        if (newMode === "designer" || newMode === "developer") {
-          console.log("[DEBUG] Mode switch to:", newMode);
-          self.switchMode(newMode);
-        }
-      });
-    }
+     // Mode switch via badge button
+     var modeBadgeBtn = document.getElementById("mode-badge");
+     if (modeBadgeBtn) {
+       modeBadgeBtn.onclick = function() {
+         var newMode = self.mode === "designer" ? "developer" : "designer";
+         console.log("[DEBUG] Mode switch via badge to:", newMode);
+         self.switchMode(newMode);
+       };
+     }
 
     // Other UI bindings...
     var menuBtn = document.getElementById("menu-toggle");
@@ -153,27 +172,88 @@ var CodePeekApp = {
       };
     }
 
-    var closeBtn = document.getElementById("close-sidepanel");
-    if (closeBtn) {
-      closeBtn.onclick = function () {
-        console.log("[DEBUG] Side panel close clicked");
-        window.close();
-      };
-    }
+     var closeBtn = document.getElementById("close-sidepanel");
+     if (closeBtn) {
+       closeBtn.onclick = function () {
+         console.log("[DEBUG] Side panel close clicked");
+         // Reset overlays before closing, wait for message to be sent
+         findContentTab(function(tab) {
+           if (tab && tab.id) {
+             chrome.tabs.sendMessage(tab.id, { type: 'RESET_ALL_OVERLAYS' }, function() {
+               setTimeout(function() { window.close(); }, 50);
+             });
+           } else {
+             window.close();
+           }
+         });
+       };
+     }
   },
 
   refreshData: function () {
     console.log("[DEBUG] refreshData() called");
     var self = this;
-    messaging.sendMessage("EXTRACT_PAGE_DATA", null, function (res) {
-      if (res && res.success) {
-        self.pageData = res.data;
-        self.renderActiveTab();
-      }
-    });
+    // Query active tab to avoid refreshing on extension pages
+    if (typeof chrome !== 'undefined' && chrome.tabs && chrome.tabs.query) {
+      chrome.tabs.query({ active: true, currentWindow: true }, function(tabs) {
+        if (chrome.runtime.lastError) {
+          console.error('[ERROR] tabs.query failed:', chrome.runtime.lastError.message);
+          return;
+        }
+         var activeTab = tabs && tabs[0];
+         if (!activeTab) return;
+         
+         // Check if active tab is an extension page (skip)
+         if (activeTab.url && activeTab.url.startsWith('chrome-extension://')) {
+           console.log('[DEBUG] Skipping refreshData - active tab is extension page:', activeTab.url);
+           return;
+         }
+         
+         // Check if URL is allowed (http, https, file)
+         var url = activeTab.url || '';
+         if (!/^https?:/.test(url) && !/^file:/.test(url)) {
+           console.log('[DEBUG] Cannot extract from URL:', url);
+           if (typeof overviewTab !== 'undefined' && overviewTab.renderError) {
+             overviewTab.renderError('Cannot extract data from this page. Please navigate to a website (http, https, or file URL).');
+           }
+           return;
+         }
+         
+         // Proceed with data extraction with retry logic
+         var attempts = 0;
+         var maxAttempts = 3;
+         
+         function attemptExtract() {
+           attempts++;
+           messaging.sendMessage("EXTRACT_PAGE_DATA", null, function (res) {
+             if (res && res.success) {
+               self.pageData = res.data;
+               self.renderActiveTab();
+               console.log('[DEBUG] Data loaded successfully on attempt ' + attempts);
+             } else if (attempts < maxAttempts) {
+               var delay = 200 * attempts; // 200ms, 400ms, 600ms
+               console.log('[DEBUG] Extract failed (attempt ' + attempts + '):', res ? res.error : 'No response');
+               setTimeout(attemptExtract, delay);
+             } else {
+               var errMsg = res && res.error ? res.error : 'No response';
+               console.error('[ERROR] Failed to load data after ' + maxAttempts + ' attempts. Last error:', errMsg);
+               // Show error UI with specific message
+               if (typeof overviewTab !== 'undefined' && overviewTab.renderError) {
+                 overviewTab.renderError('Failed to load page data.<br><small class="text-slate-500">Error: ' + errMsg + '</small>');
+               } else {
+                 alert('Failed to load page data: ' + errMsg);
+               }
+             }
+           });
+         }
+         
+         attemptExtract();
+      });
+    }
   },
 
-  switchTab: function (tabId) {
+  switchTab: function (tabId, save) {
+    if (save === undefined) save = true;
     this.activeTab = tabId;
     document.querySelectorAll(".tab-content").forEach(function (el) {
       el.classList.add("hidden");
@@ -189,7 +269,7 @@ var CodePeekApp = {
     this.renderActiveTab();
     
     // Persist active tab selection
-    this.saveSettings();
+    if (save) this.saveSettings();
 
     // If switching to colors tab, ensure correct subtab is shown
     if (tabId === "colors") {
@@ -261,47 +341,30 @@ var CodePeekApp = {
       };
       var icon = icons[tabId] || '';
       var label = labels[tabId] || tabId;
-      btn.innerHTML = '<div class="p-2.5 px-3 rounded-2xl group-[.active]:bg-brand-500 group-[.active]:text-white text-slate-400 transition-all hover:bg-slate-100 dark:hover:bg-slate-900 group-[.active]:shadow-lg group-[.active]:shadow-brand-500/20 active:scale-90">' + icon + '</div><div class="text-[10px] font-black uppercase tracking-wider mt-1 group-[.active]:text-brand-500">' + label + '</div>';
+      btn.innerHTML = '<div class="p-2.5 px-3 rounded-2xl group-[.active]:bg-brand-500 group-[.active]:text-white text-slate-600 dark:text-slate-300 transition-all hover:bg-slate-100 dark:hover:bg-slate-900 group-[.active]:shadow-lg group-[.active]:shadow-brand-500/20 active:scale-90">' + icon + '</div><div class="text-[10px] font-black uppercase tracking-wider mt-1 text-slate-600 dark:text-slate-300 group-[.active]:text-brand-500">' + label + '</div>';
       btn.className += " nav-button";
       btn.dataset.tab = tabId;
       container.appendChild(btn);
     });
   },
 
-  switchMode: function(newMode) {
-    if (this.mode === newMode) return;
-    this.mode = newMode;
-    this.saveSettings();
-    // Update UI: badge, menu, tab bar
-    this.renderTabBar();
-    // Switch to active tab for this mode
-    var tab = (newMode === "designer") ? (this.designerActiveTab || "overview") : (this.developerActiveTab || "overview");
-    this.switchTab(tab, false); // don't save yet, already saving mode
-  },
-
-  switchTab: function(tabId, save) {
-    if (save === undefined) save = true;
-    this.activeTab = tabId;
-    // Hide all tab contents
-    document.querySelectorAll(".tab-content").forEach(function(el) {
-      el.classList.add("hidden");
-    });
-    var activeEl = document.getElementById("tab-" + tabId);
-    if (activeEl) activeEl.classList.remove("hidden");
-
-    // Update nav buttons highlight
-    document.querySelectorAll(".tab-bar .nav-button, .nav-button").forEach(function(btn) {
-      if (btn.dataset.tab === tabId) btn.classList.add("active");
-      else btn.classList.remove("active");
-    });
-
-    this.renderActiveTab();
-
-    // Persist active tab for current mode
-    if (this.mode === "designer") this.designerActiveTab = tabId;
-    else this.developerActiveTab = tabId;
-    if (save) this.saveSettings();
-  },
+     switchMode: function(newMode) {
+      if (this.mode === newMode) return;
+      this.mode = newMode;
+      var modeBadge = document.getElementById("mode-badge");
+      if (modeBadge) {
+        modeBadge.textContent = "[" + (newMode === "designer" ? "DESIGN" : "DEV") + "]";
+        modeBadge.className = "px-2 py-1 rounded text-xs font-bold " + (newMode === "designer" ? "bg-purple-100 text-purple-700 dark:bg-purple-900 dark:text-purple-300" : "bg-blue-100 text-blue-700 dark:bg-blue-900 dark:text-blue-300");
+        modeBadge.title = newMode === "designer" ? "Switch to Code Mode" : "Switch to Design Mode";
+      }
+     var modeSelect = document.getElementById("mode-select");
+     if (modeSelect) modeSelect.value = newMode;
+      this.renderTabBar();
+      var tab = (newMode === "designer") ? (this.designerActiveTab || "overview") : (this.developerActiveTab || "overview");
+      this.switchTab(tab, true); // Save after tab switch to persist active tab for this mode
+      // Persist mode change to storage
+      this.saveSettings();
+    },
 
   renderActiveTab: function () {
     if (!this.pageData) return;
@@ -576,18 +639,130 @@ var CodePeekApp = {
     this.saveSettings();
   },
 
-  captureFullScreenshot: function () {
-    this.showNotification("Capturing...", "Please don't scroll.");
-    var self = this;
-    if (typeof chrome !== "undefined" && chrome.runtime && chrome.runtime.sendMessage) {
-      chrome.runtime.sendMessage({ type: "CAPTURE_FULL_PAGE" }, function (res) {
-        if (res && res.success) {
-          self.showNotification("Success", "Screenshot saved!");
-        } else {
-          self.showNotification("Failed", "Could not capture page.");
-        }
-      });
+captureFullScreenshot: function () {
+    try {
+      console.log('[DEBUG] captureFullScreenshot START');
+      this.showNotification("Capturing...", "Please don't scroll.");
+      var self = this;
+      if (typeof chrome !== "undefined" && chrome.runtime && chrome.runtime.sendMessage) {
+        console.log('[DEBUG] Querying tabs...');
+        chrome.tabs.query({ currentWindow: true }, function(tabs) {
+          console.log('[DEBUG] Tabs query result count:', tabs ? tabs.length : 0);
+          var targetTab = null;
+          // Find a content tab (non-extension, non-chrome URL)
+          for (var i = 0; i < tabs.length; i++) {
+            var t = tabs[i];
+            var url = t.url || '';
+            if (url.startsWith('http://') || url.startsWith('https://') || url.startsWith('file://')) {
+              targetTab = t;
+              break;
+            }
+          }
+          var targetTabId = targetTab ? targetTab.id : null;
+          console.log('[DEBUG] Selected targetTabId:', targetTabId);
+          if (!targetTabId) {
+            console.warn('[DEBUG] No content tab found, fallback to active');
+            chrome.tabs.query({ active: true, currentWindow: true }, function(tabs) {
+              targetTabId = tabs && tabs[0] ? tabs[0].id : null;
+              console.log('[DEBUG] Fallback active tabId:', targetTabId);
+              self.sendCaptureMessage(targetTabId);
+            });
+            return;
+          }
+          self.sendCaptureMessage(targetTabId);
+        });
+      } else {
+        console.error('[DEBUG] chrome.runtime not available for screenshot');
+      }
+    } catch (e) {
+      console.error('[DEBUG] captureFullScreenshot exception:', e);
     }
+    console.log('[DEBUG] captureFullScreenshot END (async continue)');
+  },
+
+  sendCaptureMessage: function(tabId) {
+    var self = this;
+    console.log('[DEBUG] sendCaptureMessage tabId:', tabId);
+    chrome.runtime.sendMessage({ 
+      type: "CAPTURE_FULL_PAGE", 
+      tabId: tabId 
+    }, function (res) {
+      console.log('[DEBUG] CAPTURE_FULL_PAGE response:', res);
+      if (res && res.success) {
+        self.stitchAndDownload(res.captures, res.totalWidth, res.totalHeight, res.filename);
+      } else {
+        self.showNotification("Failed", "Could not capture page.");
+      }
+    });
+  },
+
+  stitchAndDownload: function(captures, totalWidth, totalHeight, filename) {
+    console.log('[DEBUG] stitchAndDownload called', { captures: captures.length, totalWidth, totalHeight, filename });
+    var canvas = document.createElement('canvas');
+    canvas.width = totalWidth;
+    canvas.height = totalHeight;
+    var ctx = canvas.getContext('2d');
+    var pending = captures.length;
+    if (pending === 0) {
+      console.error('[DEBUG] No captures received');
+      this.showNotification("Failed", "No captures received.");
+      return;
+    }
+    var self = this;
+    captures.forEach(function(cap) {
+      console.log('[DEBUG] Loading capture', cap.offsetX, cap.offsetY);
+      var img = new Image();
+      img.onload = function() {
+        console.log('[DEBUG] Capture loaded, drawing at', cap.offsetX, cap.offsetY);
+        ctx.drawImage(img, cap.offsetX, cap.offsetY, img.width, img.height);
+        pending--;
+        console.log('[DEBUG] Pending after draw:', pending);
+        if (pending === 0) {
+          canvas.toBlob(function(blob) {
+            console.log('[DEBUG] Blob created, size:', blob ? blob.size : 'null');
+            if (!blob) {
+              self.showNotification("Failed", "Could not create image.");
+              return;
+            }
+            var url = URL.createObjectURL(blob);
+            // Use chrome.downloads API for reliable extension downloads
+            if (typeof chrome !== 'undefined' && chrome.downloads && chrome.downloads.download) {
+              console.log('[DEBUG] Using chrome.downloads API, filename:', filename);
+              chrome.downloads.download({
+                url: url,
+                filename: filename || 'fullpage.png',
+                saveAs: false
+              }, function(downloadId) {
+                if (chrome.runtime.lastError) {
+                  console.error('[DEBUG] chrome.downloads error:', chrome.runtime.lastError.message);
+                  // Fallback to <a> click
+                  var a = document.createElement('a');
+                  a.href = url;
+                  a.download = filename || 'fullpage.png';
+                  a.click();
+                } else {
+                  console.log('[DEBUG] Download started, ID:', downloadId);
+                }
+                setTimeout(function() { URL.revokeObjectURL(url); }, 5000);
+              });
+            } else {
+              console.log('[DEBUG] chrome.downloads not available, using <a> click');
+              var a = document.createElement('a');
+              a.href = url;
+              a.download = filename || 'fullpage.png';
+              a.click();
+              setTimeout(function() { URL.revokeObjectURL(url); }, 5000);
+            }
+          }, 'image/png');
+        }
+      };
+      img.onerror = function() {
+        console.error('[DEBUG] Failed to load capture image');
+        pending--;
+      };
+      img.src = cap.dataUrl;
+    });
+    this.showNotification("Success", "Full-page screenshot saved!");
   },
 
   showNotification: function (title, msg) {
@@ -608,13 +783,9 @@ var CodePeekApp = {
         toast.remove();
       }, 300);
     }, 3000);
-  },
+   },
 
-  showSuccess: function (msg) {
-    this.showNotification("Success", msg);
-  },
-
-  copyText: function (text) {
+   copyText: function (text) {
     var textarea = document.createElement("textarea");
     textarea.value = text;
     textarea.style.position = "fixed";
@@ -629,13 +800,35 @@ var CodePeekApp = {
   },
 
   handleMessage: function (msg, sender, sendResponse) {
-    if (msg && msg.type === "ELEMENT_INSPECTED") {
-      this.lastInspected = msg.payload;
-      this.switchTab("inspect");
-      if (!this.continuousInspect && this.isInspecting) {
-        this.toggleInspectMode();
+    if (msg && msg.type === "RULER_ADDED") {
+      if (typeof rulersTab !== 'undefined') {
+        rulersTab.addRuler(msg.payload);
       }
       if (sendResponse) sendResponse({ success: true });
+    } else if (msg && msg.type === "RULER_UPDATED") {
+      if (typeof rulersTab !== 'undefined') {
+        rulersTab.updateRuler(msg.payload.id, msg.payload.position);
+      }
+      if (sendResponse) sendResponse({ success: true });
+    } else if (msg && msg.type === "RULERS_CLEARED") {
+      if (typeof rulersTab !== 'undefined') {
+        rulersTab.clearRulers();
+      }
+      if (sendResponse) sendResponse({ success: true });
+     } else if (msg && msg.type === "ELEMENT_INSPECTED") {
+       this.lastInspected = msg.payload;
+       this.switchTab("inspect");
+       if (!this.continuousInspect && this.isInspecting) {
+         this.toggleInspectMode();
+       }
+       if (sendResponse) sendResponse({ success: true });
+     } else if (msg && msg.type === "MEASUREMENT_COMPLETE") {
+       if (typeof rulersTab !== 'undefined' && typeof rulersTab.showMeasurement === 'function') {
+         rulersTab.showMeasurement(msg.payload.distance);
+       }
+       if (sendResponse) sendResponse({ success: true });
+     } else {
+      if (sendResponse) sendResponse({ success: false, error: 'Unknown message type' });
     }
   },
 };
@@ -648,11 +841,41 @@ document.addEventListener("DOMContentLoaded", function () {
   CodePeekApp.init();
 });
 
-if (typeof chrome !== "undefined" && chrome.runtime && chrome.runtime.onMessage) {
-  chrome.runtime.onMessage.addListener(function (msg, sender, sendResponse) {
-    console.log("[DEBUG] Runtime message received:", msg.type);
-    CodePeekApp.handleMessage(msg, sender, sendResponse);
+ if (typeof chrome !== "undefined" && chrome.runtime && chrome.runtime.onMessage) {
+   chrome.runtime.onMessage.addListener(function (msg, sender, sendResponse) {
+     console.log("[DEBUG] Runtime message received:", msg.type);
+     CodePeekApp.handleMessage(msg, sender, sendResponse);
+   });
+ }
+
+// Find the web content tab in the current window (exclude extension pages)
+function findContentTab(callback) {
+  if (typeof chrome === 'undefined' || !chrome.tabs || !chrome.tabs.query) {
+    if (callback) callback(null);
+    return;
+  }
+  chrome.tabs.query({ currentWindow: true }, function(tabs) {
+    var contentTab = null;
+    for (var i = 0; i < tabs.length; i++) {
+      var t = tabs[i];
+      var url = t.url || '';
+      // Prefer http/https/file URLs; skip chrome-extension:// and chrome://
+      if (url.startsWith('http://') || url.startsWith('https://') || url.startsWith('file://')) {
+        contentTab = t;
+        break;
+      }
+    }
+    callback(contentTab);
   });
 }
+
+// When sidepanel closes, turn off all overlays in the content tab
+window.addEventListener('unload', function () {
+  findContentTab(function(tab) {
+    if (tab && tab.id) {
+      chrome.tabs.sendMessage(tab.id, { type: 'RESET_ALL_OVERLAYS' });
+    }
+  });
+});
 
 console.log("[DEBUG] app.js loaded at:", new Date().toISOString());
