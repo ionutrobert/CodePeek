@@ -9,6 +9,22 @@ A Chrome extension for inspecting CSS, colors, typography, and assets from any w
 - **Typography** - Font families, sizes, weights analysis
 - **Assets** - Images, SVGs, background images
 - **Inspect Mode** - Click any element to view computed styles
+- **Rulers & Measurement**
+  - Place draggable rulers on the page with coordinate list
+  - Measure distance between two elements (edge-to-edge) with visual overlay
+- **Distance Lines** - See distances from element to its parent while inspecting
+- **Full-Page Screenshot** - Capture entire page with proper filename and sticky element handling
+
+## v0.2.0 Highlights
+
+- New **Measure Distance** mode: select two elements to see precise edge-to-edge distance with highlights and labels
+- **Rulers** overhaul: drag to move, unit conversion (px/rem), Clear All, scrollable list
+- **Distance lines** toggle now persists and works correctly across sessions
+- **Continuous inspect** toggle moved to inspector panel and persisted
+- **Sidepanel close cleanup**: all overlays automatically turn off when closing the panel
+- **Context menu** toggle: control the info box during inspect
+- **Screenshot** improvements: filename uses site + page title; sticky/fixed elements hidden after first tile
+- Numerous UX refinements and bug fixes
 
 ## Installation
 
