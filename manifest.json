@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "Code Peek",
-  "version": "1.2.1",
+  "version": "0.2.1",
   "description": "Inspect CSS, colors, typography, and assets from any website",
   "permissions": [
     "activeTab",
