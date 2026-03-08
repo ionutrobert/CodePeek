@@ -6,7 +6,7 @@ var typographyTab = {
 
     if (!data || !data.typography || data.typography.length === 0) {
       container.innerHTML =
-        '<div class="py-20 text-center text-slate-300 font-black uppercase tracking-widest text-[10px] opacity-40">No fonts detected</div>';
+        '<div class="py-20 text-center text-slate-400 font-black uppercase tracking-widest text-[10px] opacity-60">No fonts detected</div>';
       return;
     }
 
@@ -16,9 +16,9 @@ var typographyTab = {
     // Tab Header
     html += '<div class="px-1 mb-2">';
     html +=
-      '<h2 class="text-xl font-black text-slate-900 dark:text-white tracking-tight">Typography</h2>';
+      '<h2 class="text-xl font-black text-slate-900 tracking-tight">Typography</h2>';
     html +=
-      '<p class="text-[10px] text-slate-700 dark:text-slate-400 font-black uppercase tracking-widest mt-1">NESTED FAMILY GROUPS</p>';
+      '<p class="text-[10px] text-slate-700 font-black uppercase tracking-widest mt-1">NESTED FAMILY GROUPS</p>';
     html += "</div>";
 
     // Families are now properly grouped objects
@@ -33,27 +33,27 @@ var typographyTab = {
 
       // Family Header and Preview Bundle
       html +=
-        '<div class="p-6 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-[32px] shadow-sm mb-6 hover:border-brand-200 transition-all group">';
+        '<div class="p-6 bg-white border border-slate-200 rounded-[32px] shadow-sm mb-6 hover:border-brand-200 transition-all group">';
       html += '<div class="flex items-center justify-between mb-6">';
       html += "<div>";
       html +=
-        '<div class="text-[10px] font-black text-slate-700 dark:text-slate-400 uppercase tracking-widest mb-1.5">FAMILY</div>';
+        '<div class="text-[10px] font-black text-slate-700 uppercase tracking-widest mb-1.5">FAMILY</div>';
       html +=
-        '<h3 class="text-2xl font-black text-slate-900 dark:text-white tracking-tighter">' +
+        '<h3 class="text-2xl font-black text-slate-900 tracking-tighter">' +
         displayName +
         "</h3>";
       html += "</div>";
       html +=
-        '<div class="bg-brand-50 dark:bg-brand-500/10 text-brand-600 dark:text-brand-400 px-3 py-1.5 rounded-full text-[9px] font-black uppercase tracking-widest">' +
+        '<div class="bg-brand-50 text-brand-600 px-3 py-1.5 rounded-full text-[9px] font-black uppercase tracking-widest">' +
         group.variants.length +
         " variants</div>";
       html += "</div>";
 
       // Font Preview Strip
       html +=
-        '<div class="py-8 px-5 bg-slate-50/50 dark:bg-slate-800/50 rounded-2xl text-center overflow-hidden mb-8 border border-white/50 dark:border-slate-800/50 backdrop-blur-sm relative">';
+        '<div class="py-8 px-5 bg-slate-50/50 rounded-2xl text-center overflow-hidden mb-8 border border-white/50 backdrop-blur-sm relative">';
       html +=
-        '<span class="text-4xl tracking-tighter text-slate-800 dark:text-white whitespace-nowrap" style="font-family:' +
+        '<span class="text-4xl tracking-tighter text-slate-800 whitespace-nowrap" style="font-family:' +
         group.family +
         '">ABCabc123 &!$</span>';
       html += "</div>";
@@ -68,15 +68,15 @@ var typographyTab = {
         var isHeading = v.tag.indexOf("h") === 0;
 
         html +=
-          '<div class="p-5 bg-white dark:bg-slate-950/50 border border-slate-200 dark:border-slate-800 rounded-2xl shadow-sm hover:border-brand-300 transition-all flex items-center justify-between group/vcard mb-4 last:mb-0">';
+          '<div class="p-5 bg-white border border-slate-200 rounded-2xl shadow-sm hover:border-brand-300 transition-all flex items-center justify-between group/vcard mb-4 last:mb-0">';
         html += '<div class="flex items-center gap-4">';
 
         // Weight Badge Card
         html +=
           '<div class="w-12 h-12 rounded-2xl flex items-center justify-center text-[11px] font-black ' +
           (isHeading
-            ? "bg-brand-50 dark:bg-brand-500/10 text-brand-600 dark:text-brand-400 border-brand-100 dark:border-brand-500/20"
-            : "bg-slate-50 dark:bg-slate-800 text-slate-700 dark:text-slate-400 border-slate-100 dark:border-slate-700") +
+            ? "bg-brand-50 text-brand-600 border-brand-100"
+            : "bg-slate-50 text-slate-700 border-slate-100") +
           ' border shadow-sm group-hover/vcard:scale-105 transition-transform">' +
           v.weight +
           "</div>";
@@ -84,16 +84,16 @@ var typographyTab = {
         html += "<div>";
         html += '<div class="flex items-center gap-2 mb-1">';
         html +=
-          '<span class="text-[11px] font-black text-slate-900 dark:text-white uppercase tracking-widest">' +
+          '<span class="text-[11px] font-black text-slate-900 uppercase tracking-widest">' +
           weightName.toUpperCase() +
           "</span>";
         html +=
-          '<span class="px-1.5 py-0.5 bg-slate-100 dark:bg-slate-800 text-[8px] font-black text-slate-400 dark:text-slate-500 rounded-sm uppercase tracking-tighter">' +
+          '<span class="px-1.5 py-0.5 bg-slate-100 text-[8px] font-black text-slate-400 rounded-sm uppercase tracking-tighter">' +
           v.tag +
           "</span>";
         html += "</div>";
         html +=
-          '<div class="text-[9px] font-black text-slate-700 dark:text-slate-400 uppercase tracking-widest leading-none">' +
+          '<div class="text-[9px] font-black text-slate-700 uppercase tracking-widest leading-none">' +
           v.size +
           " • " +
           (v.count || 1) +

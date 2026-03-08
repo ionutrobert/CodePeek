@@ -313,12 +313,12 @@
            bottom: Math.round(parseFloat(style.paddingBottom)) || 0,
            left: Math.round(parseFloat(style.paddingLeft)) || 0,
          },
-         margin: {
-           top: Math.round(parseFloat(style.marginTop)) || 0,
-           right: Math.round(parseFloat(style.marginRight)) || 0,
-           bottom: Math.round(parseFloat(style.paddingBottom)) || 0,
-           left: Math.round(parseFloat(style.marginLeft)) || 0,
-         },
+margin: {
+      top: Math.round(parseFloat(style.marginTop)) || 0,
+      right: Math.round(parseFloat(style.marginRight)) || 0,
+      bottom: Math.round(parseFloat(style.marginBottom)) || 0,
+      left: Math.round(parseFloat(style.marginLeft)) || 0,
+    },
          borderRadius: {
            topLeft: style.borderTopLeftRadius || "0px",
            topRight: style.borderTopRightRadius || "0px",

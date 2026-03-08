@@ -7,6 +7,10 @@ function findContentTab(callback) {
     return;
   }
   chrome.tabs.query({ currentWindow: true }, function(tabs) {
+    if (chrome.runtime && chrome.runtime.lastError) {
+      if (callback) callback(null);
+      return;
+    }
     var contentTab = null;
     for (var i = 0; i < tabs.length; i++) {
       var t = tabs[i];
@@ -27,20 +31,25 @@ var CodePeekApp = {
   isDarkMode: false,
   continuousInspect: false,
   colorSubtab: "all", // 'all' or 'categories' for colors tab
+  _toastTimer: null,
   mode: "designer", // 'designer' or 'developer'
+  dataCache: {
+    pageData: null,
+    timestamp: 0,
+    url: null
+  },
   tabsByMode: {
     designer: ["overview", "colors", "typography", "assets", "rulers", "inspect"],
     developer: ["overview", "tech-stack", "code-snippets", "audit", "inspect"]
   },
 
   init: function () {
-    console.log("[DEBUG] CodePeekApp.init() called", new Date().toISOString());
     this.bindEvents();
     this.loadSettings();
+
     // Defer initial data refresh to ensure content script injection and DOM ready
     var self = this;
     setTimeout(function () {
-      console.log("[DEBUG] Initial refreshData after delay");
       self.refreshData();
     }, 1500);
 
@@ -58,18 +67,16 @@ var CodePeekApp = {
       });
       chrome.tabs.onUpdated.addListener(function (tabId, changeInfo, tab) {
         if (changeInfo.status === "complete") {
+          self.invalidateCache();
           self.refreshData();
         }
       });
     }
-    
-     // Verify storage after init
+
+    // Verify storage after init
     setTimeout(function() {
-      console.log("[DEBUG] Storage check after init:");
       if (typeof chrome !== "undefined" && chrome.storage && chrome.storage.local) {
         chrome.storage.local.get(null, function(data) {
-          console.log("[DEBUG] Full storage:", data);
-          console.log("[DEBUG] Storage keys:", Object.keys(data || {}));
         });
       }
     }, 2000);
@@ -77,7 +84,6 @@ var CodePeekApp = {
 
   bindEvents: function () {
     var self = this;
-    console.log("[DEBUG] bindEvents() called");
 
     // Navigation - event delegation on tab-bar container (or document if container not yet)
     var tabBar = document.getElementById("tab-bar");
@@ -85,7 +91,6 @@ var CodePeekApp = {
       tabBar.addEventListener("click", function(e) {
         var btn = e.target.closest(".nav-button");
         if (btn && btn.dataset.tab) {
-          console.log("[DEBUG] Navigate to:", btn.dataset.tab);
           self.switchTab(btn.dataset.tab);
         }
       });
@@ -108,7 +113,6 @@ var CodePeekApp = {
     var inspectBtn = document.getElementById("inspect-toggle");
     if (inspectBtn) {
       inspectBtn.onclick = function () {
-        console.log("[DEBUG] Toggle inspect, isInspecting:", self.isInspecting);
         self.toggleInspectMode();
       };
     }
@@ -117,7 +121,6 @@ var CodePeekApp = {
     var darkBtn = document.getElementById("dark-mode-toggle");
     if (darkBtn) {
       darkBtn.onclick = function () {
-        console.log("[DEBUG] Dark mode toggle clicked, current:", self.isDarkMode);
         self.setDarkMode(!self.isDarkMode);
       };
     }
@@ -126,20 +129,21 @@ var CodePeekApp = {
     var continuousToggle = document.getElementById("continuous-inspect-toggle");
     if (continuousToggle) {
       continuousToggle.onclick = function () {
-        console.log("[DEBUG] Continuous inspect toggle, current:", self.continuousInspect);
         self.toggleContinuousInspect();
       };
     }
 
-     // Mode switch via badge button
-     var modeBadgeBtn = document.getElementById("mode-badge");
-     if (modeBadgeBtn) {
-       modeBadgeBtn.onclick = function() {
-         var newMode = self.mode === "designer" ? "developer" : "designer";
-         console.log("[DEBUG] Mode switch via badge to:", newMode);
-         self.switchMode(newMode);
-       };
-     }
+    // Mode switch via new switch button
+    var modeSwitchBtn = document.getElementById("mode-switch");
+    var modeSwitchThumb = document.getElementById("mode-switch-thumb");
+    var modeLabelDesign = document.getElementById("mode-label-design");
+    var modeLabelDev = document.getElementById("mode-label-dev");
+    if (modeSwitchBtn) {
+      modeSwitchBtn.onclick = function() {
+        var newMode = self.mode === "designer" ? "developer" : "designer";
+        self.switchMode(newMode);
+      };
+    }
 
     // Other UI bindings...
     var menuBtn = document.getElementById("menu-toggle");
@@ -172,27 +176,30 @@ var CodePeekApp = {
       };
     }
 
-     var closeBtn = document.getElementById("close-sidepanel");
-     if (closeBtn) {
-       closeBtn.onclick = function () {
-         console.log("[DEBUG] Side panel close clicked");
-         // Reset overlays before closing, wait for message to be sent
-         findContentTab(function(tab) {
-           if (tab && tab.id) {
-             chrome.tabs.sendMessage(tab.id, { type: 'RESET_ALL_OVERLAYS' }, function() {
-               setTimeout(function() { window.close(); }, 50);
-             });
-           } else {
-             window.close();
-           }
-         });
-       };
-     }
+    var closeBtn = document.getElementById("close-sidepanel");
+    if (closeBtn) {
+      closeBtn.onclick = function () {
+        // Reset overlays before closing, wait for message to be sent
+        findContentTab(function(tab) {
+          if (tab && tab.id) {
+            chrome.tabs.sendMessage(tab.id, { type: 'RESET_ALL_OVERLAYS' }, function() {
+              if (chrome.runtime && chrome.runtime.lastError) {
+                window.close();
+                return;
+              }
+              setTimeout(function() { window.close(); }, 50);
+            });
+          } else {
+            window.close();
+          }
+        });
+      };
+    }
   },
 
   refreshData: function () {
-    console.log("[DEBUG] refreshData() called");
     var self = this;
+
     // Query active tab to avoid refreshing on extension pages
     if (typeof chrome !== 'undefined' && chrome.tabs && chrome.tabs.query) {
       chrome.tabs.query({ active: true, currentWindow: true }, function(tabs) {
@@ -200,56 +207,78 @@ var CodePeekApp = {
           console.error('[ERROR] tabs.query failed:', chrome.runtime.lastError.message);
           return;
         }
-         var activeTab = tabs && tabs[0];
-         if (!activeTab) return;
-         
-         // Check if active tab is an extension page (skip)
-         if (activeTab.url && activeTab.url.startsWith('chrome-extension://')) {
-           console.log('[DEBUG] Skipping refreshData - active tab is extension page:', activeTab.url);
-           return;
-         }
-         
-         // Check if URL is allowed (http, https, file)
-         var url = activeTab.url || '';
-         if (!/^https?:/.test(url) && !/^file:/.test(url)) {
-           console.log('[DEBUG] Cannot extract from URL:', url);
-           if (typeof overviewTab !== 'undefined' && overviewTab.renderError) {
-             overviewTab.renderError('Cannot extract data from this page. Please navigate to a website (http, https, or file URL).');
-           }
-           return;
-         }
-         
-         // Proceed with data extraction with retry logic
-         var attempts = 0;
-         var maxAttempts = 3;
-         
-         function attemptExtract() {
-           attempts++;
-           messaging.sendMessage("EXTRACT_PAGE_DATA", null, function (res) {
-             if (res && res.success) {
-               self.pageData = res.data;
-               self.renderActiveTab();
-               console.log('[DEBUG] Data loaded successfully on attempt ' + attempts);
-             } else if (attempts < maxAttempts) {
-               var delay = 200 * attempts; // 200ms, 400ms, 600ms
-               console.log('[DEBUG] Extract failed (attempt ' + attempts + '):', res ? res.error : 'No response');
-               setTimeout(attemptExtract, delay);
-             } else {
-               var errMsg = res && res.error ? res.error : 'No response';
-               console.error('[ERROR] Failed to load data after ' + maxAttempts + ' attempts. Last error:', errMsg);
-               // Show error UI with specific message
-               if (typeof overviewTab !== 'undefined' && overviewTab.renderError) {
-                 overviewTab.renderError('Failed to load page data.<br><small class="text-slate-500">Error: ' + errMsg + '</small>');
-               } else {
-                 alert('Failed to load page data: ' + errMsg);
-               }
-             }
-           });
-         }
-         
-         attemptExtract();
+        var activeTab = tabs && tabs[0];
+        if (!activeTab) return;
+
+        // Check if active tab is an extension page (skip)
+        if (activeTab.url && activeTab.url.startsWith('chrome-extension://')) {
+          return;
+        }
+
+        // Check if URL is allowed (http, https, file)
+        var url = activeTab.url || '';
+        if (!/^https?:/.test(url) && !/^file:/.test(url)) {
+          self.loadTabScript('overview', function() {
+            if (typeof overviewTab !== 'undefined' && overviewTab.renderError) {
+              overviewTab.renderError('Cannot extract data from this page. Please navigate to a website (http, https, or file URL).');
+            }
+          });
+          return;
+        }
+
+        var now = Date.now();
+        var cacheAge = now - self.dataCache.timestamp;
+        if (self.dataCache.pageData && self.dataCache.url === url && cacheAge < 300000) {
+          self.pageData = self.dataCache.pageData;
+          self.loadTabScript(self.activeTab, function() {
+            self.renderActiveTab();
+          });
+          return;
+        }
+
+        // Proceed with data extraction with retry logic
+        var attempts = 0;
+        var maxAttempts = 3;
+
+        function attemptExtract() {
+          attempts++;
+          messaging.sendMessage("EXTRACT_PAGE_DATA", null, function (res) {
+            if (res && res.success) {
+              self.pageData = res.data;
+              self.dataCache.pageData = res.data;
+              self.dataCache.timestamp = Date.now();
+              self.dataCache.url = url;
+              // Lazy load tab script before rendering
+              self.loadTabScript(self.activeTab, function() {
+                self.renderActiveTab();
+              });
+            } else if (attempts < maxAttempts) {
+              var delay = 200 * attempts; // 200ms, 400ms, 600ms
+              setTimeout(attemptExtract, delay);
+            } else {
+              var errMsg = res && res.error ? res.error : 'No response';
+              console.error('[ERROR] Failed to load data after ' + maxAttempts + ' attempts. Last error:', errMsg);
+              // Show error UI with specific message
+              self.loadTabScript('overview', function() {
+                if (typeof overviewTab !== 'undefined' && overviewTab.renderError) {
+                  overviewTab.renderError('Failed to load page data.<br><small class="text-slate-500">Error: ' + errMsg + '</small>');
+                } else {
+                  alert('Failed to load page data: ' + errMsg);
+                }
+              });
+            }
+          });
+        }
+
+        attemptExtract();
       });
     }
+  },
+
+  invalidateCache: function () {
+    this.dataCache.pageData = null;
+    this.dataCache.timestamp = 0;
+    this.dataCache.url = null;
   },
 
   switchTab: function (tabId, save) {
@@ -266,8 +295,6 @@ var CodePeekApp = {
       else btn.classList.remove("active");
     });
 
-    this.renderActiveTab();
-    
     // Persist active tab selection
     if (save) this.saveSettings();
 
@@ -275,6 +302,12 @@ var CodePeekApp = {
     if (tabId === "colors") {
       this.switchColorSubtab(this.colorSubtab);
     }
+
+    // Lazy load tab script and then render
+    var self = this;
+    this.loadTabScript(tabId, function() {
+      self.renderActiveTab();
+    });
   },
 
   switchColorSubtab: function (subId) {
@@ -290,14 +323,14 @@ var CodePeekApp = {
 
     document.querySelectorAll(".color-subtab-button").forEach(function (btn) {
       if (btn.dataset.subtab === subId) {
-        btn.classList.add("bg-white", "dark:bg-slate-700", "shadow-sm", "text-brand-600", "dark:text-brand-400");
+        btn.classList.add("bg-white", "shadow-sm", "text-brand-600");
         btn.classList.remove("text-slate-400");
       } else {
-        btn.classList.remove("bg-white", "dark:bg-slate-700", "shadow-sm", "text-brand-600", "dark:text-brand-400");
+        btn.classList.remove("bg-white", "shadow-sm", "text-brand-600");
         btn.classList.add("text-slate-400");
       }
     });
-    
+
     // Persist color subtab selection
     this.colorSubtab = subId;
     this.saveSettings();
@@ -341,30 +374,61 @@ var CodePeekApp = {
       };
       var icon = icons[tabId] || '';
       var label = labels[tabId] || tabId;
-      btn.innerHTML = '<div class="p-2.5 px-3 rounded-2xl group-[.active]:bg-brand-500 group-[.active]:text-white text-slate-600 dark:text-slate-300 transition-all hover:bg-slate-100 dark:hover:bg-slate-900 group-[.active]:shadow-lg group-[.active]:shadow-brand-500/20 active:scale-90">' + icon + '</div><div class="text-[10px] font-black uppercase tracking-wider mt-1 text-slate-600 dark:text-slate-300 group-[.active]:text-brand-500">' + label + '</div>';
+      btn.innerHTML = '<div class="p-2.5 px-3 rounded-2xl text-slate-600 group-[.active]:text-brand-500 transition-all hover:bg-slate-100 active:scale-90">' + icon + '</div><div class="text-[10px] font-black uppercase tracking-wider mt-1 text-slate-600 group-[.active]:text-brand-500">' + label + '</div>';
       btn.className += " nav-button";
       btn.dataset.tab = tabId;
       container.appendChild(btn);
     });
   },
 
-     switchMode: function(newMode) {
-      if (this.mode === newMode) return;
-      this.mode = newMode;
-      var modeBadge = document.getElementById("mode-badge");
-      if (modeBadge) {
-        modeBadge.textContent = "[" + (newMode === "designer" ? "DESIGN" : "DEV") + "]";
-        modeBadge.className = "px-2 py-1 rounded text-xs font-bold " + (newMode === "designer" ? "bg-purple-100 text-purple-700 dark:bg-purple-900 dark:text-purple-300" : "bg-blue-100 text-blue-700 dark:bg-blue-900 dark:text-blue-300");
-        modeBadge.title = newMode === "designer" ? "Switch to Code Mode" : "Switch to Design Mode";
+  switchMode: function(newMode) {
+    if (this.mode === newMode) return;
+    this.mode = newMode;
+    
+    // Update mode switch UI
+    var modeSwitch = document.getElementById("mode-switch");
+    var modeSwitchThumb = document.getElementById("mode-switch-thumb");
+    var modeLabelDesign = document.getElementById("mode-label-design");
+    var modeLabelDev = document.getElementById("mode-label-dev");
+    
+    if (modeSwitch && modeSwitchThumb) {
+      if (newMode === "designer") {
+        // Switch to DESIGN - thumb on left, DESIGN label active
+        modeSwitch.classList.remove("bg-brand-500");
+        modeSwitch.classList.add("bg-slate-200");
+        modeSwitchThumb.style.transform = "translateX(0)";
+        if (modeLabelDesign) {
+          modeLabelDesign.classList.remove("text-slate-400");
+          modeLabelDesign.classList.add("text-slate-700");
+        }
+        if (modeLabelDev) {
+          modeLabelDev.classList.remove("text-slate-700");
+          modeLabelDev.classList.add("text-slate-400");
+        }
+      } else {
+        // Switch to DEV - thumb on right, DEV label active
+        modeSwitch.classList.remove("bg-slate-200");
+        modeSwitch.classList.add("bg-brand-500");
+        modeSwitchThumb.style.transform = "translateX(22px)";
+        if (modeLabelDesign) {
+          modeLabelDesign.classList.remove("text-slate-700");
+          modeLabelDesign.classList.add("text-slate-400");
+        }
+        if (modeLabelDev) {
+          modeLabelDev.classList.remove("text-slate-400");
+          modeLabelDev.classList.add("text-slate-700");
+        }
       }
-     var modeSelect = document.getElementById("mode-select");
-     if (modeSelect) modeSelect.value = newMode;
-      this.renderTabBar();
-      var tab = (newMode === "designer") ? (this.designerActiveTab || "overview") : (this.developerActiveTab || "overview");
-      this.switchTab(tab, true); // Save after tab switch to persist active tab for this mode
-      // Persist mode change to storage
-      this.saveSettings();
-    },
+    }
+    
+    var modeSelect = document.getElementById("mode-select");
+    if (modeSelect) modeSelect.value = newMode;
+    this.renderTabBar();
+    var tab = (newMode === "designer") ? (this.designerActiveTab || "overview") : (this.developerActiveTab || "overview");
+    this.switchTab(tab, true); // Save after tab switch to persist active tab for this mode
+    // Persist mode change to storage
+    this.saveSettings();
+  },
 
   renderActiveTab: function () {
     if (!this.pageData) return;
@@ -408,37 +472,38 @@ var CodePeekApp = {
     this.isInspecting = !this.isInspecting;
 
     var btn = document.getElementById("inspect-toggle");
-    var indicator = btn ? btn.querySelector("div") : null;
+    var indicator = btn ? btn.querySelector("div.rounded-full") : null;
     if (!btn) return;
 
     if (this.isInspecting) {
+      // INSPECT MODE ACTIVE - turn indicator red with glow
       btn.classList.add("bg-brand-500", "text-white", "border-brand-600");
-      btn.classList.remove("bg-slate-50", "text-slate-900", "dark:bg-slate-900", "dark:text-white");
+      btn.classList.remove("bg-slate-50", "text-slate-900");
       if (indicator) {
-        indicator.classList.add("bg-white", "animate-pulse");
-        indicator.classList.remove("bg-slate-300", "dark:bg-slate-600");
+        indicator.classList.add("inspect-active");
+        indicator.classList.remove("bg-slate-300");
+        indicator.classList.add("bg-red-500", "shadow-red-500/50", "shadow-[0_0_10px_rgba(239,68,68,0.8)]");
       }
       messaging.sendMessage("START_INSPECT_MODE", null, function () {
-        console.log("[DEBUG] START_INSPECT_MODE sent");
       });
     } else {
+      // INSPECT MODE INACTIVE - back to gray
       btn.classList.remove("bg-brand-500", "text-white", "border-brand-600");
-      btn.classList.add("bg-slate-50", "dark:bg-slate-900", "text-slate-900", "dark:text-white");
+      btn.classList.add("bg-slate-50", "text-slate-900");
       if (indicator) {
-        indicator.classList.remove("bg-white", "animate-pulse");
-        indicator.classList.add("bg-slate-300", "dark:bg-slate-600");
+        indicator.classList.remove("inspect-active");
+        indicator.classList.remove("bg-red-500", "shadow-red-500/50", "shadow-[0_0_10px_rgba(239,68,68,0.8)]");
+        indicator.classList.add("bg-slate-300");
       }
       messaging.sendMessage("STOP_INSPECT_MODE", null);
     }
   },
 
   setDarkMode: function (val) {
-    console.log("[DEBUG] setDarkMode() called with:", val, "at:", new Date().toISOString());
-    console.log("[DEBUG] chrome.storage.available:", !![chrome, chrome.storage, chrome.storage.local]);
-    
+
     var oldVal = this.isDarkMode;
     this.isDarkMode = val;
-    
+
     var html = document.documentElement;
     var thumb = document.getElementById("dark-mode-thumb");
     var track = document.getElementById("dark-mode-track");
@@ -447,27 +512,22 @@ var CodePeekApp = {
       html.classList.add("dark-mode");
       if (thumb) thumb.style.transform = "translateX(16px)";
       if (track) track.classList.replace("bg-slate-200", "bg-brand-500");
-      console.log("[DEBUG] Applied dark mode classes");
     } else {
       html.classList.remove("dark-mode");
       if (thumb) thumb.style.transform = "translateX(0)";
       if (track) track.classList.replace("bg-brand-500", "bg-slate-200");
-      console.log("[DEBUG] Removed dark mode classes");
     }
 
     if (typeof chrome !== "undefined" && chrome.storage && chrome.storage.local) {
-      console.log("[DEBUG] Saving darkMode to chrome.storage.local:", val);
       chrome.storage.local.set({ darkMode: val }, function() {
         if (chrome.runtime.lastError) {
           console.error("[ERROR] chrome.storage.local.set(darkMode) FAILED:", chrome.runtime.lastError.message);
         } else {
-          console.log("[DEBUG] chrome.storage.local.set(darkMode) succeeded");
           // Verify
           chrome.storage.local.get(['darkMode'], function(res) {
             if (chrome.runtime.lastError) {
               console.error("[ERROR] Verify get failed:", chrome.runtime.lastError.message);
             } else {
-              console.log("[DEBUG] Verify read - darkMode:", res.darkMode);
             }
           });
         }
@@ -478,12 +538,10 @@ var CodePeekApp = {
   },
 
   loadSettings: function () {
-    console.log("[DEBUG] loadSettings() called at:", new Date().toISOString());
     var self = this;
-    
+
     if (typeof chrome !== "undefined" && chrome.storage && chrome.storage.local) {
       chrome.storage.local.get(['darkMode', 'continuousInspect', 'mode', 'designerActiveTab', 'developerActiveTab', 'colorSubtab'], function (res) {
-        console.log("[DEBUG] storage.get callback:", res);
         if (chrome.runtime.lastError) {
           console.error("[ERROR] chrome.storage.local.get() FAILED:", chrome.runtime.lastError.message);
           // Apply defaults
@@ -512,7 +570,6 @@ var CodePeekApp = {
   },
 
   applyAllSettings: function(darkMode, continuousInspect, mode, designerTab, developerTab, colorSubtab) {
-    console.log("[DEBUG] applyAllSettings called with:", {darkMode, continuousInspect, mode, designerTab, developerTab, colorSubtab});
     var self = this;
 
     function applyWhenReady() {
@@ -542,21 +599,47 @@ var CodePeekApp = {
       if (contTrack && contThumb) {
         if (continuousInspect) {
           contTrack.classList.replace("bg-slate-200", "bg-brand-500");
-          contTrack.classList.replace("dark:bg-slate-700", "dark:bg-brand-500");
           contThumb.style.transform = "translateX(16px)";
         } else {
           contTrack.classList.replace("bg-brand-500", "bg-slate-200");
-          contTrack.classList.replace("dark:bg-brand-500", "dark:bg-slate-700");
           contThumb.style.transform = "translateX(0)";
         }
       }
 
-      // Update mode badge and menu
-      var modeBadge = document.getElementById("mode-badge");
-      if (modeBadge) {
-        modeBadge.textContent = "[" + (mode === "designer" ? "DESIGN" : "DEV") + "]";
-        modeBadge.className = "px-2 py-1 rounded text-xs font-bold " + (mode === "designer" ? "bg-purple-100 text-purple-700 dark:bg-purple-900 dark:text-purple-300" : "bg-blue-100 text-blue-700 dark:bg-blue-900 dark:text-blue-300");
+      // Update mode switch UI
+      var modeSwitch = document.getElementById("mode-switch");
+      var modeSwitchThumb = document.getElementById("mode-switch-thumb");
+      var modeLabelDesign = document.getElementById("mode-label-design");
+      var modeLabelDev = document.getElementById("mode-label-dev");
+      
+      if (modeSwitch && modeSwitchThumb) {
+        if (mode === "designer") {
+          modeSwitch.classList.remove("bg-brand-500");
+          modeSwitch.classList.add("bg-slate-200");
+          modeSwitchThumb.style.transform = "translateX(0)";
+          if (modeLabelDesign) {
+            modeLabelDesign.classList.remove("text-slate-400");
+            modeLabelDesign.classList.add("text-slate-700");
+          }
+          if (modeLabelDev) {
+            modeLabelDev.classList.remove("text-slate-700");
+            modeLabelDev.classList.add("text-slate-400");
+          }
+        } else {
+          modeSwitch.classList.remove("bg-slate-200");
+          modeSwitch.classList.add("bg-brand-500");
+          modeSwitchThumb.style.transform = "translateX(22px)";
+          if (modeLabelDesign) {
+            modeLabelDesign.classList.remove("text-slate-700");
+            modeLabelDesign.classList.add("text-slate-400");
+          }
+          if (modeLabelDev) {
+            modeLabelDev.classList.remove("text-slate-400");
+            modeLabelDev.classList.add("text-slate-700");
+          }
+        }
       }
+      
       var modeSelect = document.getElementById("mode-select");
       if (modeSelect) modeSelect.value = mode;
 
@@ -565,7 +648,6 @@ var CodePeekApp = {
 
       // Determine initial tab based on mode
       var initialTab = (mode === "designer") ? designerTab : developerTab;
-      console.log("[DEBUG] Initial tab for mode", mode, ":", initialTab);
 
       // Switch to initial tab (no save)
       setTimeout(function() {
@@ -577,7 +659,6 @@ var CodePeekApp = {
         }
       }, 50);
 
-      console.log("[DEBUG] All settings applied");
     }
 
     if (document.readyState === "loading") {
@@ -588,13 +669,6 @@ var CodePeekApp = {
   },
 
   saveSettings: function () {
-    console.log("[DEBUG] saveSettings() called with:", {
-      darkMode: this.isDarkMode,
-      continuousInspect: this.continuousInspect,
-      colorSubtab: this.colorSubtab,
-      mode: this.mode,
-      activeTab: this.activeTab
-    });
     // Build save object including per-mode active tabs
     var saveData = {
       darkMode: this.isDarkMode,
@@ -608,46 +682,41 @@ var CodePeekApp = {
       chrome.storage.local.set(saveData, function() {
         if (chrome.runtime.lastError) {
           console.error("[ERROR] chrome.storage.local.set() FAILED:", chrome.runtime.lastError.message);
-        } else {
-          console.log("[DEBUG] chrome.storage.local.set() succeeded");
         }
       });
     }
   },
 
   updateContinuousInspectUI: function () {
-    console.log("[DEBUG] updateContinuousInspectUI(), continuousInspect:", this.continuousInspect);
     var track = document.getElementById("continuous-track");
     var thumb = document.getElementById("continuous-thumb");
     if (track && thumb) {
       if (this.continuousInspect) {
         track.classList.replace("bg-slate-200", "bg-brand-500");
-        track.classList.replace("dark:bg-slate-700", "dark:bg-brand-500");
         thumb.style.transform = "translateX(16px)";
       } else {
         track.classList.replace("bg-brand-500", "bg-slate-200");
-        track.classList.replace("dark:bg-brand-500", "dark:bg-slate-700");
         thumb.style.transform = "translateX(0)";
       }
     }
   },
 
   toggleContinuousInspect: function () {
-    console.log("[DEBUG] toggleContinuousInspect() clicked");
     this.continuousInspect = !this.continuousInspect;
     this.updateContinuousInspectUI();
     this.saveSettings();
   },
 
-captureFullScreenshot: function () {
+  captureFullScreenshot: function () {
     try {
-      console.log('[DEBUG] captureFullScreenshot START');
       this.showNotification("Capturing...", "Please don't scroll.");
       var self = this;
       if (typeof chrome !== "undefined" && chrome.runtime && chrome.runtime.sendMessage) {
-        console.log('[DEBUG] Querying tabs...');
         chrome.tabs.query({ currentWindow: true }, function(tabs) {
-          console.log('[DEBUG] Tabs query result count:', tabs ? tabs.length : 0);
+          if (chrome.runtime && chrome.runtime.lastError) {
+            self.showNotification("Failed", "Could not read browser tabs.");
+            return;
+          }
           var targetTab = null;
           // Find a content tab (non-extension, non-chrome URL)
           for (var i = 0; i < tabs.length; i++) {
@@ -659,12 +728,14 @@ captureFullScreenshot: function () {
             }
           }
           var targetTabId = targetTab ? targetTab.id : null;
-          console.log('[DEBUG] Selected targetTabId:', targetTabId);
           if (!targetTabId) {
             console.warn('[DEBUG] No content tab found, fallback to active');
             chrome.tabs.query({ active: true, currentWindow: true }, function(tabs) {
+              if (chrome.runtime && chrome.runtime.lastError) {
+                self.showNotification("Failed", "Could not get active tab.");
+                return;
+              }
               targetTabId = tabs && tabs[0] ? tabs[0].id : null;
-              console.log('[DEBUG] Fallback active tabId:', targetTabId);
               self.sendCaptureMessage(targetTabId);
             });
             return;
@@ -677,17 +748,18 @@ captureFullScreenshot: function () {
     } catch (e) {
       console.error('[DEBUG] captureFullScreenshot exception:', e);
     }
-    console.log('[DEBUG] captureFullScreenshot END (async continue)');
   },
 
   sendCaptureMessage: function(tabId) {
     var self = this;
-    console.log('[DEBUG] sendCaptureMessage tabId:', tabId);
-    chrome.runtime.sendMessage({ 
-      type: "CAPTURE_FULL_PAGE", 
-      tabId: tabId 
+    chrome.runtime.sendMessage({
+      type: "CAPTURE_FULL_PAGE",
+      tabId: tabId
     }, function (res) {
-      console.log('[DEBUG] CAPTURE_FULL_PAGE response:', res);
+      if (chrome.runtime && chrome.runtime.lastError) {
+        self.showNotification("Failed", "Could not capture page.");
+        return;
+      }
       if (res && res.success) {
         self.stitchAndDownload(res.captures, res.totalWidth, res.totalHeight, res.filename);
       } else {
@@ -697,7 +769,6 @@ captureFullScreenshot: function () {
   },
 
   stitchAndDownload: function(captures, totalWidth, totalHeight, filename) {
-    console.log('[DEBUG] stitchAndDownload called', { captures: captures.length, totalWidth, totalHeight, filename });
     var canvas = document.createElement('canvas');
     canvas.width = totalWidth;
     canvas.height = totalHeight;
@@ -709,71 +780,135 @@ captureFullScreenshot: function () {
       return;
     }
     var self = this;
+    var completed = 0;
+    var failed = 0;
+
     captures.forEach(function(cap) {
-      console.log('[DEBUG] Loading capture', cap.offsetX, cap.offsetY);
       var img = new Image();
       img.onload = function() {
-        console.log('[DEBUG] Capture loaded, drawing at', cap.offsetX, cap.offsetY);
-        ctx.drawImage(img, cap.offsetX, cap.offsetY, img.width, img.height);
+        // Calculate actual dimensions to draw, handling partial tiles on edges
+        var drawWidth = Math.min(img.width, totalWidth - cap.offsetX);
+        var drawHeight = Math.min(img.height, totalHeight - cap.offsetY);
+
+        if (drawWidth > 0 && drawHeight > 0) {
+          // Draw only the visible portion of the captured tile
+          ctx.drawImage(img, 0, 0, drawWidth, drawHeight, cap.offsetX, cap.offsetY, drawWidth, drawHeight);
+        } else {
+        }
+
         pending--;
-        console.log('[DEBUG] Pending after draw:', pending);
+        completed++;
+
         if (pending === 0) {
-          canvas.toBlob(function(blob) {
-            console.log('[DEBUG] Blob created, size:', blob ? blob.size : 'null');
-            if (!blob) {
-              self.showNotification("Failed", "Could not create image.");
-              return;
-            }
-            var url = URL.createObjectURL(blob);
-            // Use chrome.downloads API for reliable extension downloads
-            if (typeof chrome !== 'undefined' && chrome.downloads && chrome.downloads.download) {
-              console.log('[DEBUG] Using chrome.downloads API, filename:', filename);
-              chrome.downloads.download({
-                url: url,
-                filename: filename || 'fullpage.png',
-                saveAs: false
-              }, function(downloadId) {
-                if (chrome.runtime.lastError) {
-                  console.error('[DEBUG] chrome.downloads error:', chrome.runtime.lastError.message);
-                  // Fallback to <a> click
-                  var a = document.createElement('a');
-                  a.href = url;
-                  a.download = filename || 'fullpage.png';
-                  a.click();
-                } else {
-                  console.log('[DEBUG] Download started, ID:', downloadId);
-                }
-                setTimeout(function() { URL.revokeObjectURL(url); }, 5000);
-              });
-            } else {
-              console.log('[DEBUG] chrome.downloads not available, using <a> click');
-              var a = document.createElement('a');
-              a.href = url;
-              a.download = filename || 'fullpage.png';
-              a.click();
-              setTimeout(function() { URL.revokeObjectURL(url); }, 5000);
-            }
-          }, 'image/png');
+          self.finalizeScreenshot(canvas, filename, completed, failed);
         }
       };
       img.onerror = function() {
-        console.error('[DEBUG] Failed to load capture image');
+        console.error('[DEBUG] Failed to load capture image at offset', cap.offsetX, cap.offsetY);
         pending--;
+        failed++;
+        if (pending === 0) {
+          self.finalizeScreenshot(canvas, filename, completed, failed);
+        }
       };
       img.src = cap.dataUrl;
     });
-    this.showNotification("Success", "Full-page screenshot saved!");
+  },
+
+  finalizeScreenshot: function(canvas, filename, completed, failed) {
+    var self = this;
+
+    canvas.toBlob(function(blob) {
+      if (!blob) {
+        self.showNotification("Failed", "Could not create image blob.");
+        return;
+      }
+
+      var url = URL.createObjectURL(blob);
+      var downloadFilename = filename || 'fullpage.png';
+
+      // Use chrome.downloads API for reliable extension downloads
+      if (typeof chrome !== 'undefined' && chrome.downloads && chrome.downloads.download) {
+        chrome.downloads.download({
+          url: url,
+          filename: downloadFilename,
+          saveAs: false
+        }, function(downloadId) {
+          if (chrome.runtime.lastError) {
+            console.error('[DEBUG] chrome.downloads error:', chrome.runtime.lastError.message);
+            // Fallback to <a> click
+            self.triggerDownload(url, downloadFilename);
+          } else {
+            self.showNotification("Success", "Full-page screenshot saved!");
+          }
+          setTimeout(function() { URL.revokeObjectURL(url); }, 5000);
+        });
+      } else {
+        self.triggerDownload(url, downloadFilename);
+        self.showNotification("Success", "Full-page screenshot saved!");
+        setTimeout(function() { URL.revokeObjectURL(url); }, 5000);
+      }
+    }, 'image/png');
+  },
+
+  triggerDownload: function(url, filename) {
+    var a = document.createElement('a');
+    a.href = url;
+    a.download = filename;
+    a.style.display = 'none';
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+  },
+
+  showToast: function (message, duration, toastId) {
+    var id = toastId || "measure-mode-toast";
+    var timeout = typeof duration === "number" ? duration : 5000;
+    var toast = document.getElementById(id);
+    var self = this;
+
+    if (!toast) {
+      this.showNotification("Info", message);
+      return;
+    }
+
+    toast.textContent = message || "";
+    toast.classList.remove("hidden");
+
+    if (this._toastTimer) {
+      clearTimeout(this._toastTimer);
+      this._toastTimer = null;
+    }
+
+    this._toastTimer = setTimeout(function () {
+      self._toastTimer = null;
+      self.hideToast(id);
+    }, timeout);
+  },
+
+  hideToast: function (toastId) {
+    var id = toastId || "measure-mode-toast";
+    var toast = document.getElementById(id);
+
+    if (toast) {
+      toast.classList.add("hidden");
+    }
+
+    if (this._toastTimer) {
+      clearTimeout(this._toastTimer);
+      this._toastTimer = null;
+    }
   },
 
   showNotification: function (title, msg) {
     var toast = document.createElement("div");
-    toast.className = "fixed top-4 right-4 z-[100] bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl shadow-2xl p-4 min-w-[240px] animate-in slide-in-from-top-4 duration-300";
+    toast.className = "fixed top-4 right-4 z-[100] bg-white border border-slate-200 rounded-2xl shadow-2xl p-4 min-w-[240px] animate-in slide-in-from-top-4 duration-300";
     toast.innerHTML =
       '<div class="flex items-start gap-3">' +
-      '<div class="p-2 bg-brand-50 dark:bg-brand-500/10 text-brand-600 dark:text-brand-400 rounded-xl"><svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg></div>' +
+      '<div class="p-2 bg-brand-50 text-brand-600 rounded-xl"><svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg></div>' +
       "<div>" +
-      '<div class="text-xs font-black text-slate-900 dark:text-white uppercase tracking-widest mb-0.5">' + title + "</div>" +
-      '<div class="text-[11px] text-slate-500 dark:text-slate-400 font-medium">' + msg + "</div>" +
+      '<div class="text-xs font-black text-slate-900 uppercase tracking-widest mb-0.5">' + title + "</div>" +
+      '<div class="text-[11px] text-slate-500 font-medium">' + msg + "</div>" +
       "</div></div>";
 
     document.body.appendChild(toast);
@@ -783,9 +918,9 @@ captureFullScreenshot: function () {
         toast.remove();
       }, 300);
     }, 3000);
-   },
+  },
 
-   copyText: function (text) {
+  copyText: function (text) {
     var textarea = document.createElement("textarea");
     textarea.value = text;
     textarea.style.position = "fixed";
@@ -815,57 +950,89 @@ captureFullScreenshot: function () {
         rulersTab.clearRulers();
       }
       if (sendResponse) sendResponse({ success: true });
-     } else if (msg && msg.type === "ELEMENT_INSPECTED") {
-       this.lastInspected = msg.payload;
-       this.switchTab("inspect");
-       if (!this.continuousInspect && this.isInspecting) {
-         this.toggleInspectMode();
-       }
-       if (sendResponse) sendResponse({ success: true });
-     } else if (msg && msg.type === "MEASUREMENT_COMPLETE") {
-       if (typeof rulersTab !== 'undefined' && typeof rulersTab.showMeasurement === 'function') {
-         rulersTab.showMeasurement(msg.payload.distance);
-       }
-       if (sendResponse) sendResponse({ success: true });
-     } else {
+    } else if (msg && msg.type === "ELEMENT_INSPECTED") {
+      this.lastInspected = msg.payload;
+      this.switchTab("inspect");
+      if (!this.continuousInspect && this.isInspecting) {
+        this.toggleInspectMode();
+      }
+      if (sendResponse) sendResponse({ success: true });
+    } else if (msg && msg.type === "MEASUREMENT_COMPLETE") {
+      if (typeof rulersTab !== 'undefined' && typeof rulersTab.showMeasurement === 'function') {
+        rulersTab.showMeasurement(msg.payload.distance);
+      }
+      if (sendResponse) sendResponse({ success: true });
+    } else {
       if (sendResponse) sendResponse({ success: false, error: 'Unknown message type' });
     }
   },
 };
 
+// Lazy loading for tab scripts
+CodePeekApp.loadedTabs = {};
+
+CodePeekApp.loadTabScript = function(tabName, callback) {
+  // Map tab names to their script file names and global object names
+  var tabScriptMap = {
+    overview: { script: 'tab-overview.js', global: 'overviewTab' },
+    colors: { script: 'tab-colors.js', global: 'colorsTab' },
+    typography: { script: 'tab-typography.js', global: 'typographyTab' },
+    assets: { script: 'tab-assets.js', global: 'assetsTab' },
+    inspect: { script: 'element-inspector.js', global: 'elementInspector' },
+    rulers: { script: 'tab-rulers.js', global: 'rulersTab' },
+    'tech-stack': { script: 'tab-tech-stack.js', global: 'techStackTab' },
+    'code-snippets': { script: 'tab-code-snippets.js', global: 'codeSnippetsTab' },
+    audit: { script: 'tab-audit.js', global: 'auditTab' }
+  };
+
+  var tabInfo = tabScriptMap[tabName];
+  if (!tabInfo) {
+    if (callback) callback();
+    return;
+  }
+
+  // Check if already loaded
+  if (this.loadedTabs[tabName] || window[tabInfo.global]) {
+    this.loadedTabs[tabName] = true;
+    if (callback) callback();
+    return;
+  }
+
+  var self = this;
+  var script = document.createElement('script');
+  script.src = 'components/' + tabInfo.script + '?v=2';
+  script.onload = function() {
+    self.loadedTabs[tabName] = true;
+    if (callback) callback();
+  };
+  script.onerror = function() {
+    console.error('[ERROR] Failed to load tab script:', tabName);
+    if (callback) callback();
+  };
+  document.head.appendChild(script);
+};
+
 window.CodePeekApp = CodePeekApp;
 
+function showToast(message, duration, toastId) {
+  if (window.CodePeekApp && typeof window.CodePeekApp.showToast === "function") {
+    window.CodePeekApp.showToast(message, duration, toastId);
+  }
+}
+
+function hideToast(toastId) {
+  if (window.CodePeekApp && typeof window.CodePeekApp.hideToast === "function") {
+    window.CodePeekApp.hideToast(toastId);
+  }
+}
+
 document.addEventListener("DOMContentLoaded", function () {
-  console.log("[DEBUG] DOMContentLoaded fired at:", new Date().toISOString());
-  console.log("[DEBUG] Document readyState:", document.readyState);
   CodePeekApp.init();
 });
 
- if (typeof chrome !== "undefined" && chrome.runtime && chrome.runtime.onMessage) {
-   chrome.runtime.onMessage.addListener(function (msg, sender, sendResponse) {
-     console.log("[DEBUG] Runtime message received:", msg.type);
-     CodePeekApp.handleMessage(msg, sender, sendResponse);
-   });
- }
-
-// Find the web content tab in the current window (exclude extension pages)
-function findContentTab(callback) {
-  if (typeof chrome === 'undefined' || !chrome.tabs || !chrome.tabs.query) {
-    if (callback) callback(null);
-    return;
-  }
-  chrome.tabs.query({ currentWindow: true }, function(tabs) {
-    var contentTab = null;
-    for (var i = 0; i < tabs.length; i++) {
-      var t = tabs[i];
-      var url = t.url || '';
-      // Prefer http/https/file URLs; skip chrome-extension:// and chrome://
-      if (url.startsWith('http://') || url.startsWith('https://') || url.startsWith('file://')) {
-        contentTab = t;
-        break;
-      }
-    }
-    callback(contentTab);
+if (typeof chrome !== "undefined" && chrome.runtime && chrome.runtime.onMessage) {
+  chrome.runtime.onMessage.addListener(function (msg, sender, sendResponse) {
+    CodePeekApp.handleMessage(msg, sender, sendResponse);
   });
 }
 
@@ -873,9 +1040,11 @@ function findContentTab(callback) {
 window.addEventListener('unload', function () {
   findContentTab(function(tab) {
     if (tab && tab.id) {
-      chrome.tabs.sendMessage(tab.id, { type: 'RESET_ALL_OVERLAYS' });
+      chrome.tabs.sendMessage(tab.id, { type: 'RESET_ALL_OVERLAYS' }, function () {
+        if (chrome.runtime && chrome.runtime.lastError) {
+          return;
+        }
+      });
     }
   });
 });
-
-console.log("[DEBUG] app.js loaded at:", new Date().toISOString());

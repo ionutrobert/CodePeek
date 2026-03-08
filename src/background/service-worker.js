@@ -182,7 +182,8 @@ chrome.runtime.onMessage.addListener(function (message, sender, sendResponse) {
 
 function handleFullPageCapture(message, sendResponse) {
   var tabId = message && message.tabId;
-  
+  var captureStartTime = Date.now();
+
   function startCapture(tab) {
     // Generate filename for download
     var filename = "fullpage.png";
@@ -194,105 +195,128 @@ function handleFullPageCapture(message, sendResponse) {
       } catch (e) {}
     }
 
-    chrome.tabs.sendMessage(tab.id, { type: "HIDE_SCROLLBARS" }, { frameId: 0 }, function() {
-      chrome.tabs.sendMessage(
-        tab.id,
-        { type: "SCROLL_TO", payload: { x: 0, y: 0 } },
-        { frameId: 0 },
-        function() {
-          setTimeout(function() {
-            chrome.tabs.sendMessage(
-              tab.id,
-              { type: "GET_SCROLL_DIMENSIONS" },
-              { frameId: 0 },
-              function(dim) {
-                if (!dim || !dim.success) {
-                  try { sendResponse({ success: false, error: "Failed to get dimensions" }); } catch(e) {}
-                  return;
+    // Helper to safely restore scrollbars and sticky elements
+    function cleanupAndRespond(response) {
+      chrome.tabs.sendMessage(tab.id, { type: "SHOW_STICKY_FIXED" }, { frameId: 0 }, function() {
+        chrome.tabs.sendMessage(tab.id, { type: "SHOW_SCROLLBARS" }, { frameId: 0 }, function() {
+          try {
+            sendResponse(response);
+          } catch(e) {}
+        });
+      });
+    }
+
+    // Step 1: Hide scrollbars
+    chrome.tabs.sendMessage(tab.id, { type: "HIDE_SCROLLBARS" }, { frameId: 0 }, function(hideResult) {
+      if (chrome.runtime.lastError) {
+        console.error('[DEBUG] HIDE_SCROLLBARS failed:', chrome.runtime.lastError.message);
+        cleanupAndRespond({ success: false, error: "Failed to hide scrollbars: " + chrome.runtime.lastError.message });
+        return;
+      }
+
+      // Step 2: Scroll to top-left
+      chrome.tabs.sendMessage(tab.id, { type: "SCROLL_TO", payload: { x: 0, y: 0 } }, { frameId: 0 }, function(scrollResult) {
+        if (chrome.runtime.lastError) {
+          console.error('[DEBUG] Initial SCROLL_TO failed:', chrome.runtime.lastError.message);
+          cleanupAndRespond({ success: false, error: "Failed to scroll: " + chrome.runtime.lastError.message });
+          return;
+        }
+
+        // Step 3: Get page dimensions
+        chrome.tabs.sendMessage(tab.id, { type: "GET_SCROLL_DIMENSIONS" }, { frameId: 0 }, function(dim) {
+          if (chrome.runtime.lastError || !dim || !dim.success) {
+            var errMsg = (chrome.runtime.lastError && chrome.runtime.lastError.message) || "Failed to get dimensions";
+            console.error('[DEBUG] GET_SCROLL_DIMENSIONS failed:', errMsg);
+            cleanupAndRespond({ success: false, error: errMsg });
+            return;
+          }
+
+          var totalWidth = dim.data.width;
+          var totalHeight = dim.data.height;
+          var vw = dim.data.viewportWidth;
+          var vh = dim.data.viewportHeight;
+          var cols = Math.ceil(totalWidth / vw);
+          var rows = Math.ceil(totalHeight / vh);
+
+          console.log('[DEBUG] Page dimensions:', totalWidth, 'x', totalHeight, 'Viewport:', vw, 'x', vh, 'Grid:', cols, 'x', rows);
+
+          var captures = [];
+          var currentRow = 0;
+          var currentCol = 0;
+          var firstCapture = true;
+
+          function captureNext() {
+            if (currentRow >= rows) {
+              // All captures complete
+              console.log('[DEBUG] All captures complete, total:', captures.length, 'Time:', Date.now() - captureStartTime, 'ms');
+              cleanupAndRespond({
+                success: true,
+                captures: captures,
+                totalWidth: totalWidth,
+                totalHeight: totalHeight,
+                filename: filename
+              });
+              return;
+            }
+
+            var x = currentCol * vw;
+            var y = currentRow * vh;
+
+            // Clamp scroll position to not exceed page bounds
+            if (x > totalWidth - vw) x = Math.max(0, totalWidth - vw);
+            if (y > totalHeight - vh) y = Math.max(0, totalHeight - vh);
+
+            // Scroll to position and wait for render
+            chrome.tabs.sendMessage(tab.id, { type: "SCROLL_TO", payload: { x: x, y: y } }, { frameId: 0 }, function() {
+              if (chrome.runtime.lastError) {
+                console.error('[DEBUG] SCROLL_TO failed at', x, y, ':', chrome.runtime.lastError.message);
+                // Continue to next tile despite error
+                advanceToNext();
+                return;
+              }
+
+              // Capture the viewport
+              chrome.tabs.captureVisibleTab(tab.id, { format: "png" }, function(dataUrl) {
+                if (chrome.runtime.lastError) {
+                  console.error('[DEBUG] captureVisibleTab failed at', x, y, ':', chrome.runtime.lastError.message);
+                } else if (dataUrl) {
+                  console.log('[DEBUG] Captured tile at', x, y, 'size:', dataUrl.length);
+                  captures.push({
+                    dataUrl: dataUrl,
+                    offsetX: x,
+                    offsetY: y
+                  });
+                } else {
+                  console.warn('[DEBUG] captureVisibleTab returned null/empty at', x, y);
                 }
 
-                var totalWidth = dim.data.width;
-                var totalHeight = dim.data.height;
-                var vw = dim.data.viewportWidth;
-                var vh = dim.data.viewportHeight;
-                var cols = Math.ceil(totalWidth / vw);
-                var rows = Math.ceil(totalHeight / vh);
+                // On first capture, hide sticky/fixed elements
+                if (firstCapture) {
+                  firstCapture = false;
+                  chrome.tabs.sendMessage(tab.id, { type: "HIDE_STICKY_FIXED" }, { frameId: 0 }, function() {
+                    advanceToNext();
+                  });
+                } else {
+                  advanceToNext();
+                }
+              });
+            });
+          }
 
-                var captures = [];
-                var currentRow = 0;
-                var currentCol = 0;
+          function advanceToNext() {
+            currentCol++;
+            if (currentCol >= cols) {
+              currentCol = 0;
+              currentRow++;
+            }
+            // Small delay between captures to allow UI to settle
+            setTimeout(captureNext, 50);
+          }
 
-                 function captureNext() {
-                    if (currentRow >= rows) {
-                      chrome.tabs.sendMessage(tab.id, { type: "SHOW_STICKY_FIXED" }, { frameId: 0 });
-                      chrome.tabs.sendMessage(tab.id, { type: "SHOW_SCROLLBARS" }, { frameId: 0 });
-                      try {
-                        sendResponse({
-                          success: true,
-                          captures: captures,
-                          totalWidth: totalWidth,
-                          totalHeight: totalHeight,
-                          filename: filename
-                        });
-                      } catch(e) {}
-                      return;
-                    }
-
-                   var x = currentCol * vw;
-                   var y = currentRow * vh;
-
-                   chrome.tabs.sendMessage(
-                     tab.id,
-                     { type: "SCROLL_TO", payload: { x: x, y: y } },
-                     { frameId: 0 },
-                     function() {
-                        setTimeout(function() {
-                          chrome.tabs.captureVisibleTab(
-                            tab.id,
-                            { format: "png" },
-                            function(dataUrl) {
-                              console.log('[DEBUG] captureVisibleTab at', x, y, 'dataUrl?', !!dataUrl);
-                               if (dataUrl) {
-                                 captures.push({
-                                   dataUrl: dataUrl,
-                                   offsetX: x,
-                                   offsetY: y
-                                 });
-                               } else {
-                                 console.warn('[DEBUG] captureVisibleTab returned null/empty');
-                               }
-
-                              // If this was the first capture, hide sticky/fixed elements before continuing
-                              if (x === 0 && y === 0) {
-                                chrome.tabs.sendMessage(tab.id, { type: "HIDE_STICKY_FIXED" }, { frameId: 0 }, function() {
-                                  currentCol++;
-                                  if (currentCol >= cols) {
-                                    currentCol = 0;
-                                    currentRow++;
-                                  }
-                                  captureNext();
-                                });
-                              } else {
-                                currentCol++;
-                                if (currentCol >= cols) {
-                                  currentCol = 0;
-                                  currentRow++;
-                                }
-                                captureNext();
-                              }
-                           }
-                         );
-                       }, 200); // render delay
-                     }
-                   );
-                 }
-
-                captureNext();
-              }
-            );
-          }, 500);
-        }
-      );
+          // Start the capture loop
+          captureNext();
+        });
+      });
     });
   }
 

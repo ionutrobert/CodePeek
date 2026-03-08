@@ -29,7 +29,7 @@ var colorsTab = {
      // Add Title
      var html = '<div class="flex items-center justify-between mb-6">';
      html +=
-       '<h2 class="text-xl font-black text-slate-800 dark:text-white tracking-tight">Colors</h2>';
+       '<h2 class="text-xl font-black text-slate-800 tracking-tight">Colors</h2>';
      html += "</div>";
 
      // Check if subtabs exist, otherwise reset
@@ -37,11 +37,11 @@ var colorsTab = {
      if (!subtabs) {
        html += '<div id="colors-subtab-container" class="space-y-4">';
        html +=
-         '<div class="flex gap-2 p-1 bg-slate-100 dark:bg-slate-800 rounded-xl mb-4">';
-       html +=
-         '<button class="color-subtab-button flex-1 px-3 py-2 text-xs font-bold uppercase tracking-wider rounded-lg transition-all bg-white dark:bg-slate-700 shadow-sm text-brand-600" data-subtab="all">All</button>';
-       html +=
-         '<button class="color-subtab-button flex-1 px-3 py-2 text-xs font-bold uppercase tracking-wider rounded-lg transition-all text-slate-400" data-subtab="categories">Cats</button>';
+          '<div class="flex gap-2 p-1 bg-slate-100 rounded-xl mb-4">';
+        html +=
+            '<button class="color-subtab-button flex-1 px-3 py-2 text-xs font-bold uppercase tracking-wider rounded-lg transition-all text-slate-400" data-subtab="all">All</button>';
+        html +=
+            '<button class="color-subtab-button flex-1 px-3 py-2 text-xs font-bold uppercase tracking-wider rounded-lg transition-all text-slate-400" data-subtab="categories">Cats</button>';
        html += "</div>";
        html +=
          '<div id="colors-subtab-all"><div id="colors-grid" class="mt-4"></div></div>';
@@ -90,31 +90,32 @@ var colorsTab = {
       }, 50);
    },
 
-  renderAll: function (colors) {
+   renderAll: function (colors) {
     var grid = document.getElementById("colors-grid");
+    var i, rawColor, c, html;
     if (!grid) return;
 
     if (!colors || colors.length === 0) {
       grid.innerHTML =
-        '<div class="py-20 text-center text-slate-300 font-black uppercase tracking-widest text-[10px] opacity-40">No colors found</div>';
+        '<div class="py-20 text-center text-slate-400 font-black uppercase tracking-widest text-[10px] opacity-60">No colors found</div>';
       return;
     }
 
-    var html =
+    html =
       '<div class="grid grid-cols-5 gap-2.5 animate-in fade-in slide-in-from-bottom-4 duration-500">';
-    for (var i = 0; i < colors.length; i++) {
-      var rawColor = colors[i].color;
-      var c = this.normalizeColor(rawColor);
+    for (i = 0; i < colors.length; i++) {
+      rawColor = colors[i].color;
+      c = this.normalizeColor(rawColor);
       html += '<div class="group cursor-pointer" data-color="' + c + '">';
       html +=
-        '<div class="aspect-square rounded-xl border border-slate-100 dark:border-slate-800 shadow-sm transition-all group-hover:scale-110 group-hover:shadow-lg relative overflow-hidden" style="background-color:' +
+        '<div class="aspect-square rounded-xl border border-slate-300/30 shadow-sm transition-all group-hover:scale-110 group-hover:shadow-lg relative overflow-hidden" style="background-color:' +
         rawColor +
         '">';
       html +=
         '<div class="absolute inset-0 bg-black/0 group-hover:bg-black/5 transition-colors"></div>';
       html += "</div>";
       html +=
-        '<div class="mt-2 text-[8px] font-black text-slate-500 dark:text-slate-400 uppercase tracking-tighter truncate text-center font-mono">' +
+        '<div class="mt-2 text-[8px] font-black text-slate-500 uppercase tracking-tighter truncate text-center font-mono">' +
         c +
         "</div>";
       html += "</div>";
@@ -125,16 +126,69 @@ var colorsTab = {
 
   // Generate color harmonies for a given hex color
   generateHarmonies: function(hex) {
-    // Convert hex to HSL
     var rgb = this.hexToRgb(hex);
     if (!rgb) return {};
     var hsl = this.rgbToHsl(rgb.r, rgb.g, rgb.b);
     var h = hsl.h, s = hsl.s, l = hsl.l;
+    var isGrayscale = s < 10;
+
+if (isGrayscale) {
+      var tints = [];
+      var shades = [];
+      var i;
+
+      // For black (l=0), only show tints (lighter)
+      // For white (l=100), only show shades (darker)
+      // For grays in between, show both
+      
+      if (l < 20) {
+        // Near black - only tints
+        for (i = 1; i <= 5; i++) {
+          var tintLightness = Math.min(100, l + (i * 15));
+          tints.push(this.hslToHex(h, s, tintLightness));
+        }
+        return {
+          original: hex,
+          isGrayscale: true,
+          tints: tints,
+          shades: []
+        };
+      } else if (l > 80) {
+        // Near white - only shades
+        for (i = 1; i <= 5; i++) {
+          var shadeLightness = Math.max(0, l - (i * 15));
+          shades.push(this.hslToHex(h, s, shadeLightness));
+        }
+        return {
+          original: hex,
+          isGrayscale: true,
+          tints: [],
+          shades: shades
+        };
+      } else {
+        // Middle grays - show both
+        for (i = 1; i <= 5; i++) {
+          var tintLightness = Math.min(100, l + (i * 12));
+          tints.push(this.hslToHex(h, s, tintLightness));
+        }
+        for (i = 1; i <= 5; i++) {
+          var shadeLightness = Math.max(0, l - (i * 12));
+          shades.push(this.hslToHex(h, s, shadeLightness));
+        }
+        return {
+          original: hex,
+          isGrayscale: true,
+          tints: tints,
+          shades: shades
+        };
+      }
+    }
 
     function clamp(x) { return Math.max(0, Math.min(360, x)); }
 
     return {
       original: hex,
+      isGrayscale: false,
       complementary: this.hslToHex(clamp(h + 180), s, l),
       analogous: [
         this.hslToHex(clamp(h + 30), s, l),
@@ -156,21 +210,103 @@ var colorsTab = {
     var container = document.getElementById("color-harmonies");
     if (!container) return;
     var schemes = this.generateHarmonies(hex);
-    var html = '<h4 class="text-sm font-black text-slate-700 dark:text-slate-300 mb-3">Palette Generator</h4>';
+    var html = '<h4 class="text-sm font-black text-slate-900 mb-3">Palette Generator</h4>';
     html += '<div class="grid grid-cols-2 gap-4">';
+
+    if (schemes.isGrayscale) {
+      html += renderScheme('Tints (Lighter)', schemes.tints);
+      html += renderScheme('Shades (Darker)', schemes.shades);
+      html += '</div>';
+      container.innerHTML = html;
+
+      setTimeout(function() {
+        var copyBtns = container.querySelectorAll('.copy-hex');
+        for (var i = 0; i < copyBtns.length; i++) {
+          copyBtns[i].onclick = function() {
+            var hex = this.getAttribute('data-hex');
+            copyHexValue(hex, this);
+          };
+        }
+      }, 50);
+      return;
+    }
+
+    function flashCopyButton(btn) {
+      if (!btn) return;
+      btn.classList.add('text-green-600', 'border-green-500', 'bg-green-50');
+      setTimeout(function() {
+        btn.classList.remove('text-green-600', 'border-green-500', 'bg-green-50');
+      }, 1100);
+    }
+
+    function copyHexValue(hexValue, btn) {
+      var app = window.CodePeekApp;
+
+      if (app && typeof app.copyText === 'function') {
+        app.copyText(hexValue);
+        flashCopyButton(btn);
+        return;
+      }
+
+      if (navigator.clipboard && navigator.clipboard.writeText) {
+        navigator.clipboard.writeText(hexValue).then(function() {
+          flashCopyButton(btn);
+          if (app && typeof app.showNotification === 'function') {
+            app.showNotification('Success', 'Copied to clipboard!');
+          }
+        }).catch(function() {
+          var textarea = document.createElement('textarea');
+          textarea.value = hexValue;
+          textarea.style.position = 'fixed';
+          textarea.style.opacity = '0';
+          document.body.appendChild(textarea);
+          textarea.select();
+          try {
+            document.execCommand('copy');
+            flashCopyButton(btn);
+            if (app && typeof app.showNotification === 'function') {
+              app.showNotification('Success', 'Copied to clipboard!');
+            }
+          } catch (err) {
+            console.error('Copy failed:', err);
+          }
+          document.body.removeChild(textarea);
+        });
+        return;
+      }
+
+      var fallbackTextarea = document.createElement('textarea');
+      fallbackTextarea.value = hexValue;
+      fallbackTextarea.style.position = 'fixed';
+      fallbackTextarea.style.opacity = '0';
+      document.body.appendChild(fallbackTextarea);
+      fallbackTextarea.select();
+      try {
+        document.execCommand('copy');
+        flashCopyButton(btn);
+        if (app && typeof app.showNotification === 'function') {
+          app.showNotification('Success', 'Copied to clipboard!');
+        }
+      } catch (e) {
+        console.error('Copy failed:', e);
+      }
+      document.body.removeChild(fallbackTextarea);
+    }
 
     // Helper to render scheme with copy buttons
     function renderScheme(title, colorsArr) {
-      var h = '<div class="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl p-3">';
+      var h = '<div class="bg-white border border-slate-200 rounded-xl p-3">';
       h += '<div class="text-[10px] font-bold text-slate-500 uppercase mb-2">' + title + '</div>';
       h += '<div class="flex gap-2">';
       colorsArr.forEach(function(c) {
-        h += '<div class="flex-1 flex flex-col items-center">';
-        h += '<div class="aspect-square rounded-lg shadow-sm w-full cursor-pointer group-hover:scale-105 transition-transform" style="background-color:' + c + '"></div>';
-        h += '<div class="text-[9px] font-mono mt-1 truncate w-full text-center">' + c + '</div>';
-        h += '<button class="copy-hex mt-1 text-[8px] text-slate-500 hover:text-brand-600 font-bold uppercase tracking-wider flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity" data-hex="' + c + '">';
-        h += '<svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z"/></svg>';
-        h += 'Copy</button>';
+        h += '<div class="flex-1 min-w-0">';
+        h += '<div class="aspect-square rounded-lg shadow-sm w-full cursor-pointer transition-transform hover:scale-105" style="background-color:' + c + '"></div>';
+        h += '<div class="mt-1.5 flex items-center justify-between gap-1">';
+        h += '<div class="text-[9px] font-mono text-slate-600 truncate">' + c + '</div>';
+        h += '<button type="button" class="copy-hex shrink-0 h-5 w-5 rounded-md border border-slate-200 text-slate-500 hover:text-brand-600 hover:border-brand-400 transition-colors inline-flex items-center justify-center" data-hex="' + c + '" title="Copy ' + c + '">';
+        h += '<svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z"></path></svg>';
+        h += '</button>';
+        h += '</div>';
         h += '</div>';
       });
       h += '</div></div>';
@@ -186,25 +322,14 @@ var colorsTab = {
     container.innerHTML = html;
 
     // Attach copy handlers
-    var self = this;
     setTimeout(function() {
       var copyBtns = container.querySelectorAll('.copy-hex');
-      copyBtns.forEach(function(btn) {
-        btn.onclick = function() {
+      for (var i = 0; i < copyBtns.length; i++) {
+        copyBtns[i].onclick = function() {
           var hex = this.getAttribute('data-hex');
-          navigator.clipboard.writeText(hex).then(function() {
-            var original = btn.textContent;
-            btn.textContent = 'Copied!';
-            btn.classList.add('text-green-600');
-            setTimeout(function() {
-              btn.textContent = original;
-              btn.classList.remove('text-green-600');
-            }, 1500);
-          }).catch(function(err) {
-            console.error('Copy failed:', err);
-          });
+          copyHexValue(hex, this);
         };
-      });
+      }
     }, 50);
   },
 
@@ -283,7 +408,7 @@ var colorsTab = {
 
     var html = '<div class="color-section">';
     html +=
-      '<h4 class="text-[11px] font-black text-slate-500 dark:text-slate-400 uppercase tracking-widest mb-4">' +
+      '<h4 class="text-[11px] font-black text-slate-500 uppercase tracking-widest mb-4">' +
       title +
       "</h4>";
     // Wrapping grid instead of flex-nowrap overflow-x
@@ -294,17 +419,17 @@ var colorsTab = {
       var c = item.hex;
       var rawColor = item.raw;
       html +=
-        '<div class="bg-white dark:bg-slate-900 border border-slate-100 dark:border-slate-800 rounded-2xl p-2.5 shadow-sm hover:border-brand-200 transition-all hover:-translate-y-1">';
+        '<div class="bg-white border border-slate-100 rounded-2xl p-2.5 shadow-sm hover:border-brand-200 transition-all hover:-translate-y-1">';
       html +=
         '<div class="aspect-square rounded-xl mb-3 shadow-inner border border-black/5" style="background-color:' +
         rawColor +
         '"></div>';
       html +=
-        '<div class="text-[10px] font-black text-slate-900 dark:text-white font-mono tracking-tighter uppercase mb-0.5 truncate">' +
+        '<div class="text-[10px] font-black text-slate-900 font-mono tracking-tighter uppercase mb-0.5 truncate">' +
         c +
         "</div>";
       html +=
-        '<div class="text-[8px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-widest leading-none">Primary</div>';
+        '<div class="text-[8px] font-bold text-slate-400 uppercase tracking-widest leading-none">Primary</div>';
       html += "</div>";
     }
 
