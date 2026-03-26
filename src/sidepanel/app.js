@@ -1,4 +1,5 @@
 // Sidepanel App - Premium Lavender Design System (ES5)
+var DEBUG = false;
 
 // Find the web content tab in the current window (exclude extension pages)
 function findContentTab(callback) {

@@ -1,8 +1,9 @@
 // Content Script - Plain ES5, no transpilation
 (function () {
+var DEBUG = false;
   "use strict";
 
-  console.log("Code Peek content script starting...");
+  if (DEBUG) console.log("Code Peek content script starting...");
 
   // Global error handler – prevents crashes from breaking everything
   window.onerror = function (msg, url, line) {
@@ -12,7 +13,7 @@
 
   // Page unload detection – notify side panel that context is going away
   window.addEventListener("beforeunload", function () {
-    console.log("Code Peek: Page unloading");
+    if (DEBUG) console.log("Code Peek: Page unloading");
     if (chrome && chrome.runtime && chrome.runtime.sendMessage) {
       try {
         chrome.runtime.sendMessage({ type: "PAGE_UNLOADED" });
@@ -37,19 +38,19 @@
 
   function startInspectMode() {
     if (inspectActive) {
-      console.log("Code Peek: startInspectMode called but already active");
+      if (DEBUG) console.log("Code Peek: startInspectMode called but already active");
       return;
     }
     inspectActive = true;
     document.addEventListener("mousemove", onMouseMove, true);
     document.addEventListener("click", onClick, true);
     document.body.classList.add("code-peek-inspecting");
-    console.log("Code Peek: Inspect mode ACTIVE");
+    if (DEBUG) console.log("Code Peek: Inspect mode ACTIVE");
   }
 
   function stopInspectMode() {
     if (!inspectActive) {
-      console.log("Code Peek: stopInspectMode called but already inactive");
+      if (DEBUG) console.log("Code Peek: stopInspectMode called but already inactive");
       return;
     }
     inspectActive = false;
@@ -57,7 +58,7 @@
     document.removeEventListener("click", onClick, true);
     removeHighlight();
     document.body.classList.remove("code-peek-inspecting");
-    console.log("Code Peek: Inspect mode INACTIVE");
+    if (DEBUG) console.log("Code Peek: Inspect mode INACTIVE");
   }
 
   function onMouseMove(e) {
@@ -65,7 +66,7 @@
     // Throttle log to once per second
     var now = Date.now();
     if (now - (window.lastHoverLogTime || 0) > 1000) {
-      console.log(
+      if (DEBUG) console.log(
         "Code Peek: mouse move (inspect active) at",
         new Date().toISOString(),
       );
@@ -82,7 +83,7 @@
 
   function onClick(e) {
     if (!inspectActive) {
-      console.log("Code Peek: onClick ignored (inspectActive false)");
+      if (DEBUG) console.log("Code Peek: onClick ignored (inspectActive false)");
       return;
     }
     try {
@@ -95,7 +96,7 @@
       // Handle transparency/inner elements by picking the topmost meaningful element if needed
       // (Standard behavior for now is just the target)
 
-      console.log("Code Peek: clicking on", target.tagName.toLowerCase());
+      if (DEBUG) console.log("Code Peek: clicking on", target.tagName.toLowerCase());
       inspectElement(target);
 
       // REMOVED: stopInspectMode() and messaging to sidepanel about stopping
@@ -362,7 +363,7 @@ margin: {
             type: "ELEMENT_INSPECTED",
             payload: data,
           });
-          console.log("Code Peek: Data sent for", el.tagName);
+          if (DEBUG) console.log("Code Peek: Data sent for", el.tagName);
         } catch (err) {
           console.error("Code Peek: sendMessage failed (attempt " + attempt + "):", err);
           if (attempt < maxAttempts) {
@@ -991,7 +992,7 @@ margin: {
      chrome.runtime.onMessage
    ) {
      chrome.runtime.onMessage.addListener(function (msg, sender, sendResponse) {
-       console.log("Content received:", msg.type);
+       if (DEBUG) console.log("Content received:", msg.type);
        try {
          switch (msg.type) {
            case "EXTRACT_PAGE_DATA":
@@ -1267,7 +1268,7 @@ var justDragged = false;
     document.addEventListener('mousemove', onRulersMouseMove, true);
     document.addEventListener('click', onRulersClick, true);
     document.addEventListener('keydown', onRulersKeyDown, true);
-    console.log('Code Peek: Rulers overlay enabled');
+    if (DEBUG) console.log('Code Peek: Rulers overlay enabled');
   }
 
    function disableRulersOverlay() {
@@ -1292,12 +1293,12 @@ var justDragged = false;
      document.removeEventListener('mousemove', onRulersMouseMove, true);
      document.removeEventListener('click', onRulersClick, true);
      document.removeEventListener('keydown', onRulersKeyDown, true);
-     console.log('Code Peek: Rulers overlay disabled');
+     if (DEBUG) console.log('Code Peek: Rulers overlay disabled');
    }
 
   function updateRulerUnit(unit) {
     rulersUnit = unit || 'px';
-    console.log('Code Peek: Ruler unit updated to', rulersUnit);
+    if (DEBUG) console.log('Code Peek: Ruler unit updated to', rulersUnit);
   }
 
   function createRulersOverlay() {
@@ -1443,7 +1444,7 @@ var justDragged = false;
          chrome.runtime.sendMessage({ type: 'RULERS_CLEARED' });
        }
        
-       console.log('Code Peek: All guides cleared');
+       if (DEBUG) console.log('Code Peek: All guides cleared');
      }
     }
 
@@ -1503,7 +1504,7 @@ var justDragged = false;
           if (rulersActive) disableRulersOverlay();
           document.addEventListener('click', onMeasureClick, true);
           document.addEventListener('keydown', onMeasureKeyDown, true);
-          console.log('Code Peek: Measure mode ACTIVE');
+          if (DEBUG) console.log('Code Peek: Measure mode ACTIVE');
         } else {
           if (!measureMode) return;
           measureMode = false;
@@ -1512,7 +1513,7 @@ var justDragged = false;
           clearMeasurementOverlay();
           clearMeasureHighlights();
           measureStartEl = null;
-          console.log('Code Peek: Measure mode INACTIVE');
+          if (DEBUG) console.log('Code Peek: Measure mode INACTIVE');
         }
       }
 
@@ -1648,5 +1649,5 @@ var justDragged = false;
         }
       }
 
-    console.log("Code Peek content script ready");
+    if (DEBUG) console.log("Code Peek content script ready");
   })();

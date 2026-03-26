@@ -1,7 +1,8 @@
 // Service worker for Code Peek - Plain ES5
+var DEBUG = false;
 // Keep alive to handle messages
 
-console.log("Code Peek service worker starting...");
+if (DEBUG) console.log("Code Peek service worker starting...");
 
 // Screenshot API configuration
 var SCREENSHOT_API_BASE = "https://cloudflare-screenshot-api.hassanrkbiz.workers.dev";
@@ -19,7 +20,7 @@ if (typeof window !== 'undefined') {
 
 // Configure side panel on install
 chrome.runtime.onInstalled.addListener(function (details) {
-  console.log("Installed:", details.reason);
+  if (DEBUG) console.log("Installed:", details.reason);
 
   if (chrome.sidePanel) {
     chrome.sidePanel.setOptions(
@@ -28,7 +29,7 @@ chrome.runtime.onInstalled.addListener(function (details) {
         path: "sidepanel/index.html",
       },
       function () {
-        console.log("Side panel configured");
+        if (DEBUG) console.log("Side panel configured");
       }
     );
   }
@@ -36,11 +37,11 @@ chrome.runtime.onInstalled.addListener(function (details) {
 
 // Open side panel when icon clicked
 chrome.action.onClicked.addListener(function (tab) {
-  console.log("Icon clicked");
+  if (DEBUG) console.log("Icon clicked");
 
   if (chrome.sidePanel) {
     chrome.sidePanel.open({ windowId: tab.windowId }, function () {
-      console.log("Side panel opened");
+      if (DEBUG) console.log("Side panel opened");
     });
   }
 });
@@ -49,7 +50,7 @@ chrome.action.onClicked.addListener(function (tab) {
 chrome.runtime.onMessage.addListener(function (message, sender, sendResponse) {
   // Prevent any exception from breaking the listener
   try {
-    console.log("SW received:", message.type);
+    if (DEBUG) console.log("SW received:", message.type);
 
   // Handle download messages
   if (message.type === "DOWNLOAD_FILE") {
@@ -81,7 +82,7 @@ chrome.runtime.onMessage.addListener(function (message, sender, sendResponse) {
           // Don't send error - content script may already be loaded
           try { sendResponse({ success: false, error: chrome.runtime.lastError.message }); } catch (e) {}
         } else {
-          console.log("Content script injected into tab", tabId);
+          if (DEBUG) console.log("Content script injected into tab", tabId);
           try { sendResponse({ success: true }); } catch (e) {}
         }
       }
@@ -147,7 +148,7 @@ chrome.runtime.onMessage.addListener(function (message, sender, sendResponse) {
        chrome.tabs.sendMessage(tabs[0].id, message, function (response) {
          try {
            if (chrome.runtime.lastError) {
-             console.log(
+             if (DEBUG) console.log(
                "Error sending to content:",
                chrome.runtime.lastError.message
              );
@@ -222,7 +223,7 @@ function handleFullPageCapture(message, sendResponse) {
         return;
       }
 
-      console.log('[DEBUG] Viewport screenshot captured, time:', Date.now() - captureStartTime, 'ms');
+      if (DEBUG) console.log('[DEBUG] Viewport screenshot captured, time:', Date.now() - captureStartTime, 'ms');
       try {
         sendResponse({
           success: true,
@@ -334,4 +335,4 @@ function handleDownloadCSSUrl(payload, sendResponse) {
     });
 }
 
-console.log("Service worker ready");
+if (DEBUG) console.log("Service worker ready");

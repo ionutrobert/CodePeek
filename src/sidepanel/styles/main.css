@@ -370,10 +370,6 @@
   color: var(--text-secondary) !important;
 }
 
-/* Font Preview Backgrounds */
-.dark-mode .bg-slate-50\/50 {
-  background-color: var(--bg-tertiary) !important;
-}
 
 /* Stat Values in Overview */
 .dark-mode .text-2xl,
