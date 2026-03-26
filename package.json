@@ -18,5 +18,8 @@
     "design",
     "inspector"
   ],
-  "license": "MIT"
+  "license": "MIT",
+  "dependencies": {
+    "culori": "^4.0.2"
+  }
 }

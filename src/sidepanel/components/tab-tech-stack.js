@@ -19,17 +19,23 @@ var techStackTab = {
     }
   },
 
-  display: function(data) {
-    var container = document.getElementById("tech-stack-content");
-    if (!container) return;
+display: function(data) {
+  var container = document.getElementById("tech-stack-content");
+  if (!container) return;
 
-    var html = '<div class="space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-500">';
+  var html = '<div class="tab-content">';
 
-    // Header
-    html += '<div class="flex items-center justify-between mb-4">';
-    html += '<h3 class="text-sm font-black text-slate-800 uppercase tracking-wider">Detected Stack</h3>';
-    html += '<span class="px-2 py-1 bg-brand-100 text-brand-700 text-xs font-bold rounded">' + (data.confidence.overall || 0) + '% confident</span>';
-    html += '</div>';
+  // Standardized Page Header
+  html += '<div class="neu-page-header">';
+  html += '<div class="neu-section-dot"></div>';
+  html += '<div>';
+  html += '<h2 class="neu-page-title">Tech Stack</h2>';
+  html += '<div class="neu-page-subtitle">Detected Technologies</div>';
+  html += '</div>';
+  html += '<span class="neu-badge">' + (data.confidence.overall || 0) + '% confidence</span>';
+  html += '</div>';
+
+  html += '<div class="space-y-6">';
 
     function makeSection(title, items) {
       if (!items || items.length === 0) return '';

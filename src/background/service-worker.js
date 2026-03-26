@@ -3,6 +3,9 @@
 
 console.log("Code Peek service worker starting...");
 
+// Screenshot API configuration
+var SCREENSHOT_API_BASE = "https://cloudflare-screenshot-api.hassanrkbiz.workers.dev";
+
 // Global error handler to prevent crashes
 if (typeof window !== 'undefined') {
   window.onerror = function(msg, url, line) {
@@ -184,9 +187,20 @@ function handleFullPageCapture(message, sendResponse) {
   var tabId = message && message.tabId;
   var captureStartTime = Date.now();
 
-  function startCapture(tab) {
-    // Generate filename for download
-    var filename = "fullpage.png";
+  function getActiveTab(callback) {
+    chrome.tabs.query({ active: true, currentWindow: true }, function(tabs) {
+      var tab = tabs && tabs[0];
+      if (!tab) {
+        try { sendResponse({ success: false, error: "No active tab" }); } catch(e) {}
+        return;
+      }
+      callback(tab);
+    });
+  }
+
+  function captureCurrentViewport(tab) {
+    // Generate filename
+    var filename = "screenshot.png";
     if (tab && tab.title && tab.url) {
       try {
         var hostname = new URL(tab.url).hostname;
@@ -195,156 +209,40 @@ function handleFullPageCapture(message, sendResponse) {
       } catch (e) {}
     }
 
-    // Helper to safely restore scrollbars and sticky elements
-    function cleanupAndRespond(response) {
-      chrome.tabs.sendMessage(tab.id, { type: "SHOW_STICKY_FIXED" }, { frameId: 0 }, function() {
-        chrome.tabs.sendMessage(tab.id, { type: "SHOW_SCROLLBARS" }, { frameId: 0 }, function() {
-          try {
-            sendResponse(response);
-          } catch(e) {}
-        });
-      });
-    }
-
-    // Step 1: Hide scrollbars
-    chrome.tabs.sendMessage(tab.id, { type: "HIDE_SCROLLBARS" }, { frameId: 0 }, function(hideResult) {
+    // Capture the visible viewport - this captures exactly what user sees
+    chrome.tabs.captureVisibleTab(tab.windowId, { format: "png" }, function(dataUrl) {
       if (chrome.runtime.lastError) {
-        console.error('[DEBUG] HIDE_SCROLLBARS failed:', chrome.runtime.lastError.message);
-        cleanupAndRespond({ success: false, error: "Failed to hide scrollbars: " + chrome.runtime.lastError.message });
+        console.error('[DEBUG] captureVisibleTab failed:', chrome.runtime.lastError.message);
+        try { sendResponse({ success: false, error: "Screenshot failed: " + chrome.runtime.lastError.message }); } catch(e) {}
         return;
       }
 
-      // Step 2: Scroll to top-left
-      chrome.tabs.sendMessage(tab.id, { type: "SCROLL_TO", payload: { x: 0, y: 0 } }, { frameId: 0 }, function(scrollResult) {
-        if (chrome.runtime.lastError) {
-          console.error('[DEBUG] Initial SCROLL_TO failed:', chrome.runtime.lastError.message);
-          cleanupAndRespond({ success: false, error: "Failed to scroll: " + chrome.runtime.lastError.message });
-          return;
-        }
+      if (!dataUrl) {
+        try { sendResponse({ success: false, error: "Screenshot returned empty" }); } catch(e) {}
+        return;
+      }
 
-        // Step 3: Get page dimensions
-        chrome.tabs.sendMessage(tab.id, { type: "GET_SCROLL_DIMENSIONS" }, { frameId: 0 }, function(dim) {
-          if (chrome.runtime.lastError || !dim || !dim.success) {
-            var errMsg = (chrome.runtime.lastError && chrome.runtime.lastError.message) || "Failed to get dimensions";
-            console.error('[DEBUG] GET_SCROLL_DIMENSIONS failed:', errMsg);
-            cleanupAndRespond({ success: false, error: errMsg });
-            return;
-          }
-
-          var totalWidth = dim.data.width;
-          var totalHeight = dim.data.height;
-          var vw = dim.data.viewportWidth;
-          var vh = dim.data.viewportHeight;
-          var cols = Math.ceil(totalWidth / vw);
-          var rows = Math.ceil(totalHeight / vh);
-
-          console.log('[DEBUG] Page dimensions:', totalWidth, 'x', totalHeight, 'Viewport:', vw, 'x', vh, 'Grid:', cols, 'x', rows);
-
-          var captures = [];
-          var currentRow = 0;
-          var currentCol = 0;
-          var firstCapture = true;
-
-          function captureNext() {
-            if (currentRow >= rows) {
-              // All captures complete
-              console.log('[DEBUG] All captures complete, total:', captures.length, 'Time:', Date.now() - captureStartTime, 'ms');
-              cleanupAndRespond({
-                success: true,
-                captures: captures,
-                totalWidth: totalWidth,
-                totalHeight: totalHeight,
-                filename: filename
-              });
-              return;
-            }
-
-            var x = currentCol * vw;
-            var y = currentRow * vh;
-
-            // Clamp scroll position to not exceed page bounds
-            if (x > totalWidth - vw) x = Math.max(0, totalWidth - vw);
-            if (y > totalHeight - vh) y = Math.max(0, totalHeight - vh);
-
-            // Scroll to position and wait for render
-            chrome.tabs.sendMessage(tab.id, { type: "SCROLL_TO", payload: { x: x, y: y } }, { frameId: 0 }, function() {
-              if (chrome.runtime.lastError) {
-                console.error('[DEBUG] SCROLL_TO failed at', x, y, ':', chrome.runtime.lastError.message);
-                // Continue to next tile despite error
-                advanceToNext();
-                return;
-              }
-
-              // Capture the viewport
-              chrome.tabs.captureVisibleTab(tab.id, { format: "png" }, function(dataUrl) {
-                if (chrome.runtime.lastError) {
-                  console.error('[DEBUG] captureVisibleTab failed at', x, y, ':', chrome.runtime.lastError.message);
-                } else if (dataUrl) {
-                  console.log('[DEBUG] Captured tile at', x, y, 'size:', dataUrl.length);
-                  captures.push({
-                    dataUrl: dataUrl,
-                    offsetX: x,
-                    offsetY: y
-                  });
-                } else {
-                  console.warn('[DEBUG] captureVisibleTab returned null/empty at', x, y);
-                }
-
-                // On first capture, hide sticky/fixed elements
-                if (firstCapture) {
-                  firstCapture = false;
-                  chrome.tabs.sendMessage(tab.id, { type: "HIDE_STICKY_FIXED" }, { frameId: 0 }, function() {
-                    advanceToNext();
-                  });
-                } else {
-                  advanceToNext();
-                }
-              });
-            });
-          }
-
-          function advanceToNext() {
-            currentCol++;
-            if (currentCol >= cols) {
-              currentCol = 0;
-              currentRow++;
-            }
-            // Small delay between captures to allow UI to settle
-            setTimeout(captureNext, 50);
-          }
-
-          // Start the capture loop
-          captureNext();
+      console.log('[DEBUG] Viewport screenshot captured, time:', Date.now() - captureStartTime, 'ms');
+      try {
+        sendResponse({
+          success: true,
+          dataUrl: dataUrl,
+          filename: filename
         });
-      });
+      } catch(e) {}
     });
   }
 
   if (tabId) {
-    chrome.tabs.get(tabId, function(tab, getError) {
-      if (getError || !tab) {
-        // Fallback to active tab
-        chrome.tabs.query({ active: true, currentWindow: true }, function(tabs) {
-          var tab = tabs[0];
-          if (!tab) {
-            try { sendResponse({ success: false, error: "No active tab" }); } catch(e) {}
-            return;
-          }
-          startCapture(tab);
-        });
+    chrome.tabs.get(tabId, function(tab) {
+      if (chrome.runtime.lastError || !tab) {
+        getActiveTab(captureCurrentViewport);
         return;
       }
-      startCapture(tab);
+      captureCurrentViewport(tab);
     });
   } else {
-    chrome.tabs.query({ active: true, currentWindow: true }, function(tabs) {
-      var tab = tabs[0];
-      if (!tab) {
-        try { sendResponse({ success: false, error: "No active tab" }); } catch(e) {}
-        return;
-      }
-      startCapture(tab);
-    });
+    getActiveTab(captureCurrentViewport);
   }
 }
 

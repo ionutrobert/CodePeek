@@ -19,19 +19,33 @@ var auditTab = {
     }
   },
 
-  display: function(data) {
-    var container = document.getElementById("audit-content");
-    if (!container) return;
+display: function(data) {
+  var container = document.getElementById("audit-content");
+  if (!container) return;
 
-    var issues = data.contrastIssues || [];
-    var stats = data.stylesheets || {};
-    var totalAssets = (data.assets || []).length;
+  var issues = data.contrastIssues || [];
+  var stats = data.stylesheets || {};
+  var totalAssets = (data.assets || []).length;
 
-    var html = '<div class="space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-500">';
+  var html = '<div class="tab-content">';
 
-    // Accessibility Section
-    html += '<div class="bg-white border border-slate-200 rounded-xl p-4">';
-    html += '<h3 class="text-sm font-black text-slate-800 uppercase tracking-wider mb-3">Accessibility</h3>';
+  // Standardized Page Header
+  html += '<div class="neu-page-header">';
+  html += '<div class="neu-section-dot"></div>';
+  html += '<div>';
+  html += '<h2 class="neu-page-title">Audit</h2>';
+  html += '<div class="neu-page-subtitle">Accessibility & Performance</div>';
+  html += '</div>';
+  html += '</div>';
+
+  html += '<div class="space-y-6">';
+
+  // Accessibility Section
+  html += '<div class="neu-card" style="padding: 20px;">';
+  html += '<div class="neu-section-header" style="margin-bottom: 12px;">';
+  html += '<div class="neu-section-dot"></div>';
+  html += '<div class="neu-section-title">Accessibility</div>';
+  html += '</div>';
     if (issues.length === 0) {
       html += '<div class="flex items-center gap-3 p-4 bg-green-50 border border-green-200 rounded-xl"><div class="w-10 h-10 bg-green-500 rounded-full flex items-center justify-center text-white"><svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path></svg></div><div><div class="text-sm font-bold text-green-800">No Issues Found</div><div class="text-xs text-green-600">All elements pass WCAG AA contrast standards.</div></div></div>';
     } else {

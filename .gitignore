@@ -11,3 +11,18 @@ dist/
 # OS
 .DS_Store
 Thumbs.db
+
+# Agent/AI files
+.sisyphus/
+
+# Test results
+test-results/
+
+# Screenshots folder
+screenshots/
+
+# Build temp files
+build/icons/
+
+# ES5 transpiled files (not used in build)
+*.es5.js

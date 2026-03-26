@@ -13,15 +13,23 @@ var codeSnippetsTab = {
       return;
     }
 
-    var rawHtml = app.lastInspected.html || '';
-    var formatted = this.formatHtml(rawHtml);
-    var escaped = this.escapeHtml(formatted);
+var rawHtml = app.lastInspected.html || '';
+  var formatted = this.formatHtml(rawHtml);
+  var escaped = this.escapeHtml(formatted);
 
-    var html = '<div class="space-y-4 animate-in fade-in slide-in-from-bottom-4 duration-500">';
-html += '<div class="flex items-center justify-between mb-2">';
-html += '<h3 class="text-sm font-black text-slate-800 uppercase tracking-wider">Element Export</h3>';
-html += '<button id="copy-html-btn" class="px-3 py-1 bg-white border border-slate-200 rounded-lg text-xs font-bold text-slate-700 hover:bg-slate-50 transition-colors">Copy</button>';
-html += '</div>';
+  var html = '<div class="tab-content">';
+
+  // Standardized Page Header
+  html += '<div class="neu-page-header">';
+  html += '<div class="neu-section-dot"></div>';
+  html += '<div>';
+  html += '<h2 class="neu-page-title">Code Snippets</h2>';
+  html += '<div class="neu-page-subtitle">Element Export</div>';
+  html += '</div>';
+  html += '<button id="copy-html-btn" class="neu-btn neu-btn-small">Copy</button>';
+  html += '</div>';
+
+  html += '<div class="space-y-4">';
 html += '<textarea id="export-html" class="w-full h-64 p-3 bg-slate-50 border border-slate-200 rounded-xl font-mono text-xs resize-none focus:outline-none focus:ring-2 focus:ring-brand-500" readonly>' + escaped + '</textarea>';
     html += '<div class="text-xs text-slate-500 italic">Note: This copies the raw HTML of the selected element. Inlining computed styles is coming soon.</div>';
     html += '</div>';

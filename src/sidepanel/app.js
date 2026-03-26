@@ -133,17 +133,34 @@ var CodePeekApp = {
       };
     }
 
-    // Mode switch via new switch button
-    var modeSwitchBtn = document.getElementById("mode-switch");
-    var modeSwitchThumb = document.getElementById("mode-switch-thumb");
-    var modeLabelDesign = document.getElementById("mode-label-design");
-    var modeLabelDev = document.getElementById("mode-label-dev");
-    if (modeSwitchBtn) {
-      modeSwitchBtn.onclick = function() {
-        var newMode = self.mode === "designer" ? "developer" : "designer";
-        self.switchMode(newMode);
-      };
-    }
+// Mode switch via neumorphic pill toggle
+  var modeOptionDesign = document.getElementById("mode-option-design");
+  var modeOptionDev = document.getElementById("mode-option-dev");
+  
+  if (modeOptionDesign) {
+  modeOptionDesign.onclick = function() {
+  if (self.mode !== "designer") {
+  self.switchMode("designer");
+  }
+  };
+  }
+  
+  if (modeOptionDev) {
+  modeOptionDev.onclick = function() {
+  if (self.mode !== "developer") {
+  self.switchMode("developer");
+  }
+  };
+  }
+  
+  // Also check for old switch button (backward compatibility)
+  var modeSwitchBtn = document.getElementById("mode-switch");
+  if (modeSwitchBtn) {
+  modeSwitchBtn.onclick = function() {
+  var newMode = self.mode === "designer" ? "developer" : "designer";
+  self.switchMode(newMode);
+  };
+  }
 
     // Other UI bindings...
     var menuBtn = document.getElementById("menu-toggle");
@@ -336,93 +353,87 @@ var CodePeekApp = {
     this.saveSettings();
   },
 
-  // Render bottom tab bar based on current mode
+// Render bottom tab bar based on current mode - Neumorphic design
   renderTabBar: function () {
-    var container = document.getElementById("tab-bar");
-    if (!container) return;
-    container.innerHTML = ""; // Clear existing
+  var container = document.getElementById("tab-bar");
+  if (!container) return;
+  container.innerHTML = ""; // Clear existing
 
-    var tabs = this.tabsByMode[this.mode] || [];
-    var self = this;
+  var tabs = this.tabsByMode[this.mode] || [];
+  var self = this;
 
-    tabs.forEach(function(tabId) {
-      var btn = document.createElement("button");
-      btn.className = "tab-button flex flex-col items-center gap-1 group relative py-2";
-      btn.setAttribute("data-tab", tabId);
-      // Icon and label based on tabId (same as before but mapped)
-      var icons = {
-        overview: '<svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2V6zM14 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2V6zM4 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2v-2zM14 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2v-2z"></path></svg>',
-        colors: '<svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 21a4 4 0 01-4-4V5a2 2 0 012-2h4a2 2 0 012 2v12a4 4 0 01-4 4zm0 0h12a2 2 0 002-2v-4a2 2 0 00-2-2h-2.343M11 7.343l1.657-1.657a2 2 0 012.828 0l2.829 2.829a2 2 0 010 2.828l-8.486 8.485M7 17h.01"></path></svg>',
-        typography: '<svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path></svg>',
-        assets: '<svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z"></path></svg>',
-        inspect: '<svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"></path></svg>',
-        rulers: '<svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v16h16V4H4z" stroke-dasharray="4 4"/><path d="M4 4h16v16H4z" fill="none" stroke-dasharray="4 4"/></svg>',
-        'tech-stack': '<svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 20l4-16m4 4l4 4-4 4M6 16l-4-4 4-4"></path></svg>',
-        'code-snippets': '<svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 20l4-16m4 4l4 4-4 4M6 16l-4-4 4-4"></path></svg>',
-        audit: '<svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z"></path></svg>'
-      };
-      var labels = {
-        overview: "Overview",
-        colors: "Colors",
-        typography: "Typography",
-        assets: "Assets",
-        inspect: "Inspect",
-        rulers: "Rulers",
-        'tech-stack': "Tech",
-        'code-snippets': "Code",
-        audit: "Audit"
-      };
-      var icon = icons[tabId] || '';
-      var label = labels[tabId] || tabId;
-      btn.innerHTML = '<div class="p-2.5 px-3 rounded-2xl text-slate-600 group-[.active]:text-brand-500 transition-all hover:bg-slate-100 active:scale-90">' + icon + '</div><div class="text-[10px] font-black uppercase tracking-wider mt-1 text-slate-600 group-[.active]:text-brand-500">' + label + '</div>';
-      btn.className += " nav-button";
-      btn.dataset.tab = tabId;
-      container.appendChild(btn);
-    });
+  // Create neu-nav wrapper
+  var navWrapper = document.createElement("div");
+  navWrapper.className = "flex items-center justify-around w-full gap-2";
+
+  tabs.forEach(function(tabId) {
+  var btn = document.createElement("button");
+  btn.className = "neu-nav-item flex-1";
+  btn.setAttribute("data-tab", tabId);
+  btn.setAttribute("role", "tab");
+  
+  // Icon and label based on tabId
+  var icons = {
+  overview: '<svg class="w-5 h-5 mb-1" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2V6zM14 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2V6zM4 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2v-2zM14 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2v-2z"></path></svg>',
+  colors: '<svg class="w-5 h-5 mb-1" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 21a4 4 0 01-4-4V5a2 2 0 012-2h4a2 2 0 012 2v12a4 4 0 01-4 4zm0 0h12a2 2 0 002-2v-4a2 2 0 00-2-2h-2.343M11 7.343l1.657-1.657a2 2 0 012.828 0l2.829 2.829a2 2 0 010 2.828l-8.486 8.485M7 17h.01"></path></svg>',
+  typography: '<svg class="w-5 h-5 mb-1" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path></svg>',
+  assets: '<svg class="w-5 h-5 mb-1" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z"></path></svg>',
+  inspect: '<svg class="w-5 h-5 mb-1" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"></path></svg>',
+  rulers: '<svg class="w-5 h-5 mb-1" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4"></path></svg>',
+  'tech-stack': '<svg class="w-5 h-5 mb-1" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 20l4-16m4 4l4 4-4 4M6 16l-4-4 4-4"></path></svg>',
+  'code-snippets': '<svg class="w-5 h-5 mb-1" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 20l4-16m4 4l4 4-4 4M6 16l-4-4 4-4"></path></svg>',
+  audit: '<svg class="w-5 h-5 mb-1" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z"></path></svg>'
+  };
+  var labels = {
+  overview: "Overview",
+  colors: "Colors",
+  typography: "Type",
+  assets: "Assets",
+  inspect: "Inspect",
+  rulers: "Rulers",
+  'tech-stack': "Stack",
+  'code-snippets': "Code",
+  audit: "Audit"
+  };
+  var icon = icons[tabId] || '';
+  var label = labels[tabId] || tabId;
+  
+  // Active state based on current tab
+  if (tabId === self.activeTab) {
+  btn.classList.add("active");
+  }
+  
+  btn.innerHTML = icon + '<div class="text-[9px] font-bold uppercase tracking-wider">' + label + '</div>';
+  btn.className += " nav-button";
+  btn.dataset.tab = tabId;
+  navWrapper.appendChild(btn);
+  });
+  
+  container.appendChild(navWrapper);
   },
 
-  switchMode: function(newMode) {
-    if (this.mode === newMode) return;
-    this.mode = newMode;
-    
-    // Update mode switch UI
-    var modeSwitch = document.getElementById("mode-switch");
-    var modeSwitchThumb = document.getElementById("mode-switch-thumb");
-    var modeLabelDesign = document.getElementById("mode-label-design");
-    var modeLabelDev = document.getElementById("mode-label-dev");
-    
-    if (modeSwitch && modeSwitchThumb) {
-      if (newMode === "designer") {
-        // Switch to DESIGN - thumb on left, DESIGN label active
-        modeSwitch.classList.remove("bg-brand-500");
-        modeSwitch.classList.add("bg-slate-200");
-        modeSwitchThumb.style.transform = "translateX(0)";
-        if (modeLabelDesign) {
-          modeLabelDesign.classList.remove("text-slate-400");
-          modeLabelDesign.classList.add("text-slate-700");
-        }
-        if (modeLabelDev) {
-          modeLabelDev.classList.remove("text-slate-700");
-          modeLabelDev.classList.add("text-slate-400");
-        }
-      } else {
-        // Switch to DEV - thumb on right, DEV label active
-        modeSwitch.classList.remove("bg-slate-200");
-        modeSwitch.classList.add("bg-brand-500");
-        modeSwitchThumb.style.transform = "translateX(22px)";
-        if (modeLabelDesign) {
-          modeLabelDesign.classList.remove("text-slate-700");
-          modeLabelDesign.classList.add("text-slate-400");
-        }
-        if (modeLabelDev) {
-          modeLabelDev.classList.remove("text-slate-400");
-          modeLabelDev.classList.add("text-slate-700");
-        }
-      }
-    }
-    
-    var modeSelect = document.getElementById("mode-select");
-    if (modeSelect) modeSelect.value = newMode;
+switchMode: function(newMode) {
+  if (this.mode === newMode) return;
+  this.mode = newMode;
+
+  // Update mode toggle UI - Neumorphic pill design
+  var designOption = document.getElementById("mode-option-design");
+  var devOption = document.getElementById("mode-option-dev");
+
+  if (designOption && devOption) {
+  if (newMode === "designer") {
+  // Switch to DESIGN
+  designOption.classList.add("active");
+  devOption.classList.remove("active");
+  } else {
+  // Switch to DEV
+  devOption.classList.add("active");
+  designOption.classList.remove("active");
+  }
+  }
+
+  var modeSelect = document.getElementById("mode-select");
+  if (modeSelect) modeSelect.value = newMode;
     this.renderTabBar();
     var tab = (newMode === "designer") ? (this.designerActiveTab || "overview") : (this.developerActiveTab || "overview");
     this.switchTab(tab, true); // Save after tab switch to persist active tab for this mode
@@ -467,36 +478,40 @@ var CodePeekApp = {
     }
   },
 
-  toggleInspectMode: function () {
-    var self = this;
-    this.isInspecting = !this.isInspecting;
+toggleInspectMode: function () {
+  var self = this;
+  this.isInspecting = !this.isInspecting;
 
-    var btn = document.getElementById("inspect-toggle");
-    var indicator = btn ? btn.querySelector("div.rounded-full") : null;
-    if (!btn) return;
+  var btn = document.getElementById("inspect-toggle");
+  var indicator = btn ? btn.querySelector("div.rounded-full") : null;
+  if (!btn) return;
 
-    if (this.isInspecting) {
-      // INSPECT MODE ACTIVE - turn indicator red with glow
-      btn.classList.add("bg-brand-500", "text-white", "border-brand-600");
-      btn.classList.remove("bg-slate-50", "text-slate-900");
-      if (indicator) {
-        indicator.classList.add("inspect-active");
-        indicator.classList.remove("bg-slate-300");
-        indicator.classList.add("bg-red-500", "shadow-red-500/50", "shadow-[0_0_10px_rgba(239,68,68,0.8)]");
-      }
-      messaging.sendMessage("START_INSPECT_MODE", null, function () {
-      });
-    } else {
-      // INSPECT MODE INACTIVE - back to gray
-      btn.classList.remove("bg-brand-500", "text-white", "border-brand-600");
-      btn.classList.add("bg-slate-50", "text-slate-900");
-      if (indicator) {
-        indicator.classList.remove("inspect-active");
-        indicator.classList.remove("bg-red-500", "shadow-red-500/50", "shadow-[0_0_10px_rgba(239,68,68,0.8)]");
-        indicator.classList.add("bg-slate-300");
-      }
-      messaging.sendMessage("STOP_INSPECT_MODE", null);
-    }
+  if (this.isInspecting) {
+  // INSPECT MODE ACTIVE - neumorphic active state
+  btn.classList.add("neu-btn-active");
+  btn.style.background = "linear-gradient(145deg, var(--brand-500), var(--brand-600))";
+  btn.style.color = "white";
+  if (indicator) {
+  indicator.classList.add("inspect-active");
+  indicator.classList.remove("bg-slate-400");
+  indicator.style.backgroundColor = "#ef4444";
+  indicator.style.boxShadow = "0 0 8px rgba(239, 68, 68, 0.8)";
+  }
+  messaging.sendMessage("START_INSPECT_MODE", null, function () {
+  });
+  } else {
+  // INSPECT MODE INACTIVE - back to neumorphic default
+  btn.classList.remove("neu-btn-active");
+  btn.style.background = "";
+  btn.style.color = "";
+  if (indicator) {
+  indicator.classList.remove("inspect-active");
+  indicator.style.backgroundColor = "";
+  indicator.style.boxShadow = "";
+  indicator.classList.add("bg-slate-400");
+  }
+  messaging.sendMessage("STOP_INSPECT_MODE", null);
+  }
   },
 
   setDarkMode: function (val) {
@@ -606,39 +621,34 @@ var CodePeekApp = {
         }
       }
 
-      // Update mode switch UI
-      var modeSwitch = document.getElementById("mode-switch");
-      var modeSwitchThumb = document.getElementById("mode-switch-thumb");
-      var modeLabelDesign = document.getElementById("mode-label-design");
-      var modeLabelDev = document.getElementById("mode-label-dev");
-      
-      if (modeSwitch && modeSwitchThumb) {
-        if (mode === "designer") {
-          modeSwitch.classList.remove("bg-brand-500");
-          modeSwitch.classList.add("bg-slate-200");
-          modeSwitchThumb.style.transform = "translateX(0)";
-          if (modeLabelDesign) {
-            modeLabelDesign.classList.remove("text-slate-400");
-            modeLabelDesign.classList.add("text-slate-700");
-          }
-          if (modeLabelDev) {
-            modeLabelDev.classList.remove("text-slate-700");
-            modeLabelDev.classList.add("text-slate-400");
-          }
-        } else {
-          modeSwitch.classList.remove("bg-slate-200");
-          modeSwitch.classList.add("bg-brand-500");
-          modeSwitchThumb.style.transform = "translateX(22px)";
-          if (modeLabelDesign) {
-            modeLabelDesign.classList.remove("text-slate-700");
-            modeLabelDesign.classList.add("text-slate-400");
-          }
-          if (modeLabelDev) {
-            modeLabelDev.classList.remove("text-slate-400");
-            modeLabelDev.classList.add("text-slate-700");
-          }
-        }
-      }
+// Update mode switch UI - Neumorphic pill toggle
+  var modeOptionDesign = document.getElementById("mode-option-design");
+  var modeOptionDev = document.getElementById("mode-option-dev");
+
+  if (modeOptionDesign && modeOptionDev) {
+  if (mode === "designer") {
+  modeOptionDesign.classList.add("active");
+  modeOptionDev.classList.remove("active");
+  } else {
+  modeOptionDev.classList.add("active");
+  modeOptionDesign.classList.remove("active");
+  }
+  }
+  
+  // Also update old switch if present (backward compatibility)
+  var modeSwitch = document.getElementById("mode-switch");
+  var modeSwitchThumb = document.getElementById("mode-switch-thumb");
+  if (modeSwitch && modeSwitchThumb) {
+  if (mode === "designer") {
+  modeSwitch.classList.remove("bg-brand-500");
+  modeSwitch.classList.add("bg-slate-200");
+  modeSwitchThumb.style.transform = "translateX(0)";
+  } else {
+  modeSwitch.classList.remove("bg-slate-200");
+  modeSwitch.classList.add("bg-brand-500");
+  modeSwitchThumb.style.transform = "translateX(22px)";
+  }
+  }
       
       var modeSelect = document.getElementById("mode-select");
       if (modeSelect) modeSelect.value = mode;
@@ -712,35 +722,24 @@ var CodePeekApp = {
       this.showNotification("Capturing...", "Please don't scroll.");
       var self = this;
       if (typeof chrome !== "undefined" && chrome.runtime && chrome.runtime.sendMessage) {
-        chrome.tabs.query({ currentWindow: true }, function(tabs) {
+        // Get the ACTIVE tab - the one the user is currently viewing
+        chrome.tabs.query({ active: true, currentWindow: true }, function(tabs) {
           if (chrome.runtime && chrome.runtime.lastError) {
-            self.showNotification("Failed", "Could not read browser tabs.");
+            self.showNotification("Failed", "Could not get active tab.");
             return;
           }
-          var targetTab = null;
-          // Find a content tab (non-extension, non-chrome URL)
-          for (var i = 0; i < tabs.length; i++) {
-            var t = tabs[i];
-            var url = t.url || '';
-            if (url.startsWith('http://') || url.startsWith('https://') || url.startsWith('file://')) {
-              targetTab = t;
-              break;
-            }
-          }
-          var targetTabId = targetTab ? targetTab.id : null;
-          if (!targetTabId) {
-            console.warn('[DEBUG] No content tab found, fallback to active');
-            chrome.tabs.query({ active: true, currentWindow: true }, function(tabs) {
-              if (chrome.runtime && chrome.runtime.lastError) {
-                self.showNotification("Failed", "Could not get active tab.");
-                return;
-              }
-              targetTabId = tabs && tabs[0] ? tabs[0].id : null;
-              self.sendCaptureMessage(targetTabId);
-            });
+          var activeTab = tabs && tabs[0];
+          if (!activeTab) {
+            self.showNotification("Failed", "No active tab found.");
             return;
           }
-          self.sendCaptureMessage(targetTabId);
+          var url = activeTab.url || '';
+          // Only screenshot http/https/file URLs
+          if (!url.startsWith('http://') && !url.startsWith('https://') && !url.startsWith('file://')) {
+            self.showNotification("Failed", "Cannot screenshot this page type.");
+            return;
+          }
+          self.sendCaptureMessage(activeTab.id);
         });
       } else {
         console.error('[DEBUG] chrome.runtime not available for screenshot');
@@ -760,95 +759,38 @@ var CodePeekApp = {
         self.showNotification("Failed", "Could not capture page.");
         return;
       }
-      if (res && res.success) {
-        self.stitchAndDownload(res.captures, res.totalWidth, res.totalHeight, res.filename);
+      if (res && res.success && res.dataUrl) {
+        self.downloadScreenshot(res.dataUrl, res.filename);
       } else {
-        self.showNotification("Failed", "Could not capture page.");
+        var errorMsg = res && res.error ? res.error : "Could not capture page.";
+        self.showNotification("Failed", errorMsg);
       }
     });
   },
 
-  stitchAndDownload: function(captures, totalWidth, totalHeight, filename) {
-    var canvas = document.createElement('canvas');
-    canvas.width = totalWidth;
-    canvas.height = totalHeight;
-    var ctx = canvas.getContext('2d');
-    var pending = captures.length;
-    if (pending === 0) {
-      console.error('[DEBUG] No captures received');
-      this.showNotification("Failed", "No captures received.");
-      return;
-    }
+  downloadScreenshot: function(dataUrl, filename) {
     var self = this;
-    var completed = 0;
-    var failed = 0;
+    var downloadFilename = filename || 'fullpage.png';
 
-    captures.forEach(function(cap) {
-      var img = new Image();
-      img.onload = function() {
-        // Calculate actual dimensions to draw, handling partial tiles on edges
-        var drawWidth = Math.min(img.width, totalWidth - cap.offsetX);
-        var drawHeight = Math.min(img.height, totalHeight - cap.offsetY);
-
-        if (drawWidth > 0 && drawHeight > 0) {
-          // Draw only the visible portion of the captured tile
-          ctx.drawImage(img, 0, 0, drawWidth, drawHeight, cap.offsetX, cap.offsetY, drawWidth, drawHeight);
+    // Use chrome.downloads API for reliable extension downloads
+    if (typeof chrome !== 'undefined' && chrome.downloads && chrome.downloads.download) {
+      chrome.downloads.download({
+        url: dataUrl,
+        filename: downloadFilename,
+        saveAs: false
+      }, function(downloadId) {
+        if (chrome.runtime.lastError) {
+          console.error('[DEBUG] chrome.downloads error:', chrome.runtime.lastError.message);
+          // Fallback to <a> click
+          self.triggerDownload(dataUrl, downloadFilename);
         } else {
+          self.showNotification("Success", "Full-page screenshot saved!");
         }
-
-        pending--;
-        completed++;
-
-        if (pending === 0) {
-          self.finalizeScreenshot(canvas, filename, completed, failed);
-        }
-      };
-      img.onerror = function() {
-        console.error('[DEBUG] Failed to load capture image at offset', cap.offsetX, cap.offsetY);
-        pending--;
-        failed++;
-        if (pending === 0) {
-          self.finalizeScreenshot(canvas, filename, completed, failed);
-        }
-      };
-      img.src = cap.dataUrl;
-    });
-  },
-
-  finalizeScreenshot: function(canvas, filename, completed, failed) {
-    var self = this;
-
-    canvas.toBlob(function(blob) {
-      if (!blob) {
-        self.showNotification("Failed", "Could not create image blob.");
-        return;
-      }
-
-      var url = URL.createObjectURL(blob);
-      var downloadFilename = filename || 'fullpage.png';
-
-      // Use chrome.downloads API for reliable extension downloads
-      if (typeof chrome !== 'undefined' && chrome.downloads && chrome.downloads.download) {
-        chrome.downloads.download({
-          url: url,
-          filename: downloadFilename,
-          saveAs: false
-        }, function(downloadId) {
-          if (chrome.runtime.lastError) {
-            console.error('[DEBUG] chrome.downloads error:', chrome.runtime.lastError.message);
-            // Fallback to <a> click
-            self.triggerDownload(url, downloadFilename);
-          } else {
-            self.showNotification("Success", "Full-page screenshot saved!");
-          }
-          setTimeout(function() { URL.revokeObjectURL(url); }, 5000);
-        });
-      } else {
-        self.triggerDownload(url, downloadFilename);
-        self.showNotification("Success", "Full-page screenshot saved!");
-        setTimeout(function() { URL.revokeObjectURL(url); }, 5000);
-      }
-    }, 'image/png');
+      });
+    } else {
+      self.triggerDownload(dataUrl, downloadFilename);
+      self.showNotification("Success", "Full-page screenshot saved!");
+    }
   },
 
   triggerDownload: function(url, filename) {

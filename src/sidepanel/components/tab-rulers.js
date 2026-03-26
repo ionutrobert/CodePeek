@@ -10,82 +10,91 @@ var rulersTab = {
     console.log("[rulersTab] init");
   },
 
-  render: function(pageData) {
-    var container = document.getElementById("rulers-content");
-    if (!container) return;
-    var self = this;
-    var html = '';
-    var measureButtonClasses = '';
+render: function(pageData) {
+  var container = document.getElementById("rulers-content");
+  if (!container) return;
+  var self = this;
+  var html = '<div class="tab-content">';
+  var measureButtonClasses = '';
 
-    if (this.isMeasuring) {
-      measureButtonClasses = 'w-full px-3 py-2 text-xs font-bold bg-brand-500 text-white border border-brand-600 rounded-lg hover:bg-brand-600 transition-colors';
-    } else {
-      measureButtonClasses = 'w-full px-3 py-2 text-xs font-bold bg-blue-100 text-blue-700 border border-blue-200 rounded-lg hover:bg-blue-200 transition-colors';
-    }
-    
-html += '<div class="space-y-4">';
+  // Standardized Page Header
+  html += '<div class="neu-page-header">';
+  html += '<div class="neu-section-dot"></div>';
+  html += '<div>';
+  html += '<h2 class="neu-page-title">Rulers</h2>';
+  html += '<div class="neu-page-subtitle">Measurement Tools</div>';
+  html += '</div>';
+  html += '</div>';
 
-    // Tools Section - Unified switches
-    html += '<div class="bg-white border border-slate-200 rounded-2xl p-4">';
-    html += '<div class="flex items-center justify-between mb-4">';
-    html += '<h4 class="text-xs font-black text-slate-600 uppercase tracking-widest">Measurement Tools</h4>';
-    html += '<button id="rulers-help-btn" class="w-6 h-6 flex items-center justify-center text-slate-400 hover:text-slate-600 transition-colors" title="How to use rulers">?</button>';
-    html += '</div>';
+  html += '<div class="space-y-4">';
 
-    // Tool 1: Ruler Overlay
-    html += '<div class="flex items-center justify-between py-3 border-b border-slate-100">';
-    html += '<div class="flex items-center gap-3">';
-    html += '<div class="w-8 h-8 rounded-lg bg-brand-100 flex items-center justify-center text-brand-600">';
-    html += '<svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16M4 18h16"></path></svg>';
-    html += '</div>';
-    html += '<div>';
-    html += '<div class="text-sm font-medium text-slate-900">Ruler Overlay</div>';
-    html += '<div class="text-xs text-slate-500">Show horizontal/vertical guides</div>';
-    html += '</div>';
-    html += '</div>';
-    html += '<button id="rulers-toggle" class="relative w-12 h-6 rounded-full transition-colors ' + (this.isActive ? 'bg-brand-500' : 'bg-slate-200') + '">';
-    html += '<div class="absolute top-1 left-1 w-4 h-4 bg-white rounded-full shadow transition-transform ' + (this.isActive ? 'translate-x-6' : '') + '"></div>';
-    html += '</button>';
-    html += '</div>';
+  // Tools Section - Neumorphic
+  html += '<div class="neu-card" style="padding: 20px;">';
+  html += '<div class="flex items-center justify-between mb-4">';
+  html += '<div class="neu-section-header" style="margin-bottom: 0;">';
+  html += '<div class="neu-section-dot"></div>';
+  html += '<div class="neu-section-title">Tools</div>';
+  html += '</div>';
+  html += '<button id="rulers-help-btn" class="neu-btn-icon" title="How to use rulers" style="width: 32px; height: 32px;">?</button>';
+  html += '</div>';
 
-    // Tool 2: Measure Distance
-    html += '<div class="flex items-center justify-between py-3">';
-    html += '<div class="flex items-center gap-3">';
-    html += '<div class="w-8 h-8 rounded-lg flex items-center justify-center text-brand-600">';
-    html += '<svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4"></path></svg>';
-    html += '</div>';
-    html += '<div>';
-    html += '<div class="text-sm font-medium text-slate-900">Measure Distance</div>';
-    html += '<div class="text-xs text-slate-500">Click two elements to measure</div>';
-    html += '</div>';
-    html += '</div>';
-    html += '<button id="measure-distance-btn" class="relative w-12 h-6 rounded-full transition-colors ' + (this.isMeasuring ? 'bg-brand-500' : 'bg-slate-200') + '">';
-    html += '<div class="absolute top-1 left-1 w-4 h-4 bg-white rounded-full shadow transition-transform ' + (this.isMeasuring ? 'translate-x-6' : '') + '"></div>';
-    html += '</button>';
-    html += '</div>';
+  // Tool 1: Ruler Overlay - Neumorphic switch
+  html += '<div class="flex items-center justify-between py-3 border-b" style="border-color: var(--border-subtle);">';
+  html += '<div class="flex items-center gap-3">';
+  html += '<div class="neu-btn-icon" style="width: 40px; height: 40px; background: linear-gradient(145deg, var(--brand-100), var(--brand-200)); color: var(--brand-600);">';
+  html += '<svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16M4 18h16"></path></svg>';
+  html += '</div>';
+  html += '<div>';
+  html += '<div class="text-sm font-medium" style="color: var(--text-primary);">Ruler Overlay</div>';
+  html += '<div class="text-xs" style="color: var(--text-muted);">Show horizontal/vertical guides</div>';
+  html += '</div>';
+  html += '</div>';
+  html += '<button id="rulers-toggle" class="neu-switch-track ' + (this.isActive ? 'active' : '') + '">';
+  html += '<div class="neu-switch-thumb"></div>';
+  html += '</button>';
+  html += '</div>';
 
-    html += '</div>';
+  // Tool 2: Measure Distance - Neumorphic switch
+  html += '<div class="flex items-center justify-between py-3">';
+  html += '<div class="flex items-center gap-3">';
+  html += '<div class="neu-btn-icon" style="width: 40px; height: 40px;">';
+  html += '<svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4"></path></svg>';
+  html += '</div>';
+  html += '<div>';
+  html += '<div class="text-sm font-medium" style="color: var(--text-primary);">Measure Distance</div>';
+  html += '<div class="text-xs" style="color: var(--text-muted);">Click two elements to measure</div>';
+  html += '</div>';
+  html += '</div>';
+  html += '<button id="measure-distance-btn" class="neu-switch-track ' + (this.isMeasuring ? 'active' : '') + '">';
+  html += '<div class="neu-switch-thumb"></div>';
+  html += '</button>';
+  html += '</div>';
 
-    // Settings Section
-    html += '<div class="bg-white border border-slate-200 rounded-2xl p-4">';
-    html += '<h4 class="text-xs font-black text-slate-600 uppercase tracking-widest mb-3">Settings</h4>';
+  html += '</div>';
 
-    // Unit selector
-    html += '<div class="flex items-center justify-between py-2">';
-    html += '<span class="text-sm text-slate-700">Unit</span>';
-    html += '<select id="rulers-unit" class="px-3 py-1.5 text-sm bg-slate-50 border border-slate-200 rounded-lg">';
-    html += '<option value="px" ' + (this.unit === 'px' ? 'selected' : '') + '>Pixels (px)</option>';
-    html += '<option value="rem" ' + (this.unit === 'rem' ? 'selected' : '') + '>REM</option>';
-    html += '<option value="em" ' + (this.unit === 'em' ? 'selected' : '') + '>EM</option>';
-    html += '</select>';
-    html += '</div>';
+  // Settings Section - Neumorphic
+  html += '<div class="neu-card-inset" style="padding: 20px;">';
+  html += '<div class="neu-section-header" style="margin-bottom: 12px;">';
+  html += '<div class="neu-section-dot"></div>';
+  html += '<div class="neu-section-title">Settings</div>';
+  html += '</div>';
 
-    // Clear All button
-    html += '<div class="mt-3 pt-3 border-t border-slate-100">';
-    html += '<button id="rulers-clear-all" class="w-full px-3 py-2 text-xs font-bold text-red-600 hover:bg-red-50 rounded-lg transition-colors">Clear All Markers</button>';
-    html += '</div>';
+  // Unit selector - Neumorphic
+  html += '<div class="flex items-center justify-between py-3">';
+  html += '<span class="text-sm" style="color: var(--text-secondary);">Unit</span>';
+  html += '<select id="rulers-unit" class="neu-input" style="width: auto; min-width: 120px;">';
+  html += '<option value="px" ' + (this.unit === 'px' ? 'selected' : '') + '>Pixels (px)</option>';
+  html += '<option value="rem" ' + (this.unit === 'rem' ? 'selected' : '') + '>REM</option>';
+  html += '<option value="em" ' + (this.unit === 'em' ? 'selected' : '') + '>EM</option>';
+  html += '</select>';
+  html += '</div>';
 
-    html += '</div>';
+  // Clear All button - Neumorphic danger
+  html += '<div class="mt-4 pt-4" style="border-top: 1px solid var(--border-subtle);">';
+  html += '<button id="rulers-clear-all" class="neu-btn" style="width: 100%; color: var(--error-text);">Clear All Markers</button>';
+  html += '</div>';
+
+  html += '</div>';
 
     // Toast for measure mode
     html += '<div id="measure-mode-toast" class="hidden fixed bottom-4 left-1/2 -translate-x-1/2 z-[130] max-w-[340px] px-4 py-2.5 text-xs font-semibold bg-slate-800 text-white border border-slate-700 rounded-xl shadow-2xl">Click 2 elements to measure distance. Press ESC to cancel.</div>';

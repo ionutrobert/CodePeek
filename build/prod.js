@@ -39,36 +39,42 @@ console.log('  ⦿ Copying icons...');
 fs.cpSync('icons', 'dist/icons', { recursive: true });
 
 // 5. Copy sidepanel - just copy the source files directly
-console.log('  ⦿ Copying sidepanel...');
+console.log(' ⦿ Copying sidepanel...');
 fs.mkdirSync('dist/sidepanel', { recursive: true });
 
- var sidepanelFiles = [
-   'index.html',
-   'error-handler.js',
-   'app.js',
-   'components/tab-overview.js',
-   'components/tab-colors.js',
-   'components/tab-typography.js',
-   'components/tab-assets.js',
-   'components/element-inspector.js',
-   'components/color-picker.js',  // ADDED
-   'components/tab-rulers.js',
-   'components/tab-tech-stack.js',
-   'components/tab-code-snippets.js',
-   'components/tab-audit.js',
-   'utils/messaging.js',
-   'utils/formatters.js',
-   'styles/generated.css',
-   'styles/main.css'
- ];
+// Copy culori library
+if (fs.existsSync('node_modules/culori/bundled/culori.min.js')) {
+fs.copyFileSync('node_modules/culori/bundled/culori.min.js', 'dist/sidepanel/culori.min.js');
+console.log('  - Copied culori.min.js');
+}
+
+var sidepanelFiles = [
+'index.html',
+'error-handler.js',
+'app.js',
+'components/tab-overview.js',
+'components/tab-colors.js',
+'components/tab-typography.js',
+'components/tab-assets.js',
+'components/element-inspector.js',
+'components/color-picker.js', // ADDED
+'components/tab-rulers.js',
+'components/tab-tech-stack.js',
+'components/tab-code-snippets.js',
+'components/tab-audit.js',
+'utils/messaging.js',
+'utils/formatters.js',
+'styles/generated.css',
+'styles/main.css'
+];
 
 sidepanelFiles.forEach(function(file) {
-  var srcPath = path.join('src/sidepanel', file);
-  var destPath = path.join('dist/sidepanel', file);
-  if (fs.existsSync(srcPath)) {
-    fs.mkdirSync(path.dirname(destPath), { recursive: true });
-    fs.copyFileSync(srcPath, destPath);
-  }
+var srcPath = path.join('src/sidepanel', file);
+var destPath = path.join('dist/sidepanel', file);
+if (fs.existsSync(srcPath)) {
+fs.mkdirSync(path.dirname(destPath), { recursive: true });
+fs.copyFileSync(srcPath, destPath);
+}
 });
 
 // 6. Copy background

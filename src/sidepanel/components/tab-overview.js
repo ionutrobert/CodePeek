@@ -73,21 +73,18 @@ var overviewTab = {
       return;
     }
 
-    // Build the Dashboard HTML from scratch for premium look
-    var html =
-      '<div class="space-y-6 pb-6 animate-in fade-in slide-in-from-bottom-4 duration-500">';
+// Build the Dashboard HTML from scratch with consistent neumorphic design
+  var html =
+  '<div class="tab-content">';
 
-    // 1. Upgrade Banner
-    html += '<div class="flex items-center justify-between mb-4">';
-    html +=
-      '<h2 class="text-xl font-black text-slate-800 tracking-tight">Overview</h2>';
-    html +=
-      '<button class="flex items-center gap-1.5 px-3 py-1.5 bg-pink-50 text-pink-600 rounded-lg border border-pink-100 shadow-sm hover:scale-105 transition-all cursor-pointer group">';
-    html +=
-      '<svg class="w-4 h-4 text-pink-500 animate-pulse" fill="currentColor" viewBox="0 0 24 24"><path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/></svg>';
-    html +=
-      '<span class="text-[10px] font-black uppercase tracking-widest">Upgrade</span>';
-    html += "</button></div>";
+  // Standardized Page Header
+  html += '<div class="neu-page-header">';
+  html += '<div class="neu-section-dot"></div>';
+  html += '<div>';
+  html += '<h2 class="neu-page-title">Overview</h2>';
+  html += '<div class="neu-page-subtitle">Page Summary</div>';
+  html += '</div>';
+  html += '</div>';
 
     // 2. Site Details (Title and Host)
     html += '<div class="px-1">';

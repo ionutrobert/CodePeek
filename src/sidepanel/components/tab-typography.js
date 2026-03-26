@@ -10,16 +10,17 @@ var typographyTab = {
       return;
     }
 
-    var html =
-      '<div class="space-y-10 pb-12 animate-in fade-in slide-in-from-bottom-4 duration-500">';
+var html =
+  '<div class="tab-content">';
 
-    // Tab Header
-    html += '<div class="px-1 mb-2">';
-    html +=
-      '<h2 class="text-xl font-black text-slate-900 tracking-tight">Typography</h2>';
-    html +=
-      '<p class="text-[10px] text-slate-700 font-black uppercase tracking-widest mt-1">NESTED FAMILY GROUPS</p>';
-    html += "</div>";
+  // Standardized Page Header
+  html += '<div class="neu-page-header">';
+  html += '<div class="neu-section-dot"></div>';
+  html += '<div>';
+  html += '<h2 class="neu-page-title">Typography</h2>';
+  html += '<div class="neu-page-subtitle">Font Families</div>';
+  html += '</div>';
+  html += '</div>';
 
     // Families are now properly grouped objects
     var families = data.typography;
