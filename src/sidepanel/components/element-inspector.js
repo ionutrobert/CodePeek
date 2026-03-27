@@ -22,10 +22,16 @@ var elementInspector = {
       : document.getElementById("inspect-content");
     if (!container) return;
 
-    if (!data) {
-      this.clear();
+    container.classList.add("transition-all", "duration-300", "ease-out");
+
+    if (!data || !data.element) {
+      this.renderEmptyState(container);
       return;
     }
+
+    container.dataset.inspectorState = "active";
+    container.style.minHeight = "";
+    container.style.maxHeight = "";
 
     var el = data.element || {};
     var styles = data.styles || {};
@@ -146,6 +152,22 @@ html += '</div>';
       (br.bottomLeft || "24px") +
       ';">';
     html +=
+      '<span class="absolute -top-3 left-0 rounded-full bg-slate-900 px-2 py-1 text-[8px] font-black text-white shadow-sm whitespace-nowrap">' +
+      (br.topLeft || "0px") +
+      "</span>";
+    html +=
+      '<span class="absolute -top-3 right-0 rounded-full bg-slate-900 px-2 py-1 text-[8px] font-black text-white shadow-sm whitespace-nowrap">' +
+      (br.topRight || "0px") +
+      "</span>";
+    html +=
+      '<span class="absolute -bottom-3 right-0 rounded-full bg-slate-900 px-2 py-1 text-[8px] font-black text-white shadow-sm whitespace-nowrap">' +
+      (br.bottomRight || "0px") +
+      "</span>";
+    html +=
+      '<span class="absolute -bottom-3 left-0 rounded-full bg-slate-900 px-2 py-1 text-[8px] font-black text-white shadow-sm whitespace-nowrap">' +
+      (br.bottomLeft || "0px") +
+      "</span>";
+    html +=
       '<span class="absolute top-1 text-[8px] font-black text-slate-900">' +
       p.top +
       "</span>";
@@ -235,32 +257,6 @@ html += '</div>';
         prop.value +
         "</span>";
       html += "</div></div>";
-    }
-    html += "</div></div>";
-
-    // Border Radius Section
-    html += '<div class="pt-8">';
-    html +=
-      '<h4 class="text-[11px] font-black text-slate-700 uppercase tracking-widest mb-4">BORDER RADIUS</h4>';
-    html += '<div class="grid grid-cols-2 gap-3">';
-    var rads = [
-      { l: "Top Left", v: br.topLeft || "0px" },
-      { l: "Top Right", v: br.topRight || "0px" },
-      { l: "Bottom Right", v: br.bottomRight || "0px" },
-      { l: "Bottom Left", v: br.bottomLeft || "0px" },
-    ];
-    for (r = 0; r < rads.length; r++) {
-      html +=
-        '<div class="p-3 bg-slate-50 rounded-xl border border-slate-100 flex items-center justify-between">';
-      html +=
-        '<span class="text-[10px] text-slate-500 font-bold uppercase tracking-tighter">' +
-        rads[r].l +
-        "</span>";
-      html +=
-        '<span class="text-[10px] font-black text-slate-900">' +
-        rads[r].v +
-        "</span>";
-      html += "</div>";
     }
     html += "</div></div>";
 
@@ -446,11 +442,29 @@ var contextToggle = document.getElementById("context-mockup");
     document.body.removeChild(textarea);
   },
 
+  renderEmptyState: function (container) {
+    if (!container) return;
+    container.classList.add("transition-all", "duration-300", "ease-out");
+    container.dataset.inspectorState = "empty";
+    container.style.minHeight = "140px";
+    container.style.maxHeight = "240px";
+    var emptyHtml =
+      '<div class="flex flex-col items-center justify-center gap-3 px-4 py-10 text-center text-slate-500 animate-in fade-in duration-300">' +
+      '<div class="w-14 h-14 flex items-center justify-center rounded-full bg-slate-100 text-slate-400 shadow-inner border border-slate-200">' +
+      '<svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">' +
+      '<path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M15.5 15.5l4.5 4.5m-7-3.5a6.5 6.5 0 1 1 0-13 6.5 6.5 0 0 1 0 13z"></path>' +
+      '</svg>' +
+      '</div>' +
+      '<p class="text-sm font-black text-slate-700 tracking-tight">Click an element to inspect</p>' +
+      '<p class="text-xs text-slate-400 uppercase tracking-wider">Select an element to view details</p>' +
+      '</div>';
+    container.innerHTML = emptyHtml;
+  },
+
   clear: function () {
     var container = document.getElementById("inspect-content");
     if (container) {
-container.innerHTML = 
-'<div class="flex flex-col items-center justify-center py-20 text-slate-400"><div class="w-12 h-12 mb-4 opacity-40"><svg fill="currentColor" viewBox="0 0 24 24"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 15h-2v-2h2v2zm0-4h-2V7h2v6z"/></svg></div><p class="text-[10px] font-black uppercase tracking-widest text-slate-500">No element selected</p></div>';
+      this.renderEmptyState(container);
     }
   },
 };

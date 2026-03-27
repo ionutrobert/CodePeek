@@ -30,11 +30,9 @@ var overviewTab = {
     var self = this;
     var container = document.getElementById("tab-overview");
     var hasOgData;
-    var hasTwitterData;
-    var previewImg;
-    var cardTitle;
-    var cardDesc;
-    var displayUrl;
+    var ogSource;
+    var previewCards;
+    var previewIndex;
     var fonts;
     var headings;
     var body;
@@ -98,76 +96,24 @@ var overviewTab = {
       "</p>";
     html += "</div>";
 
-    // 2b. Social Preview Card (Open Graph / Twitter Card)
-    // Only show if there's actual OG or Twitter Card data
     hasOgData = data.meta && data.meta.og && (data.meta.og.title || data.meta.og.description || data.meta.og.image);
-    hasTwitterData = data.meta && data.meta.twitter && (data.meta.twitter.title || data.meta.twitter.description || data.meta.twitter.image);
-    if (hasOgData || hasTwitterData) {
-       html += '<div class="mt-6">';
-       html +=
-         '<h4 class="text-[10px] font-black text-slate-500 uppercase tracking-widest mb-3">Link Preview</h4>';
-       
-       // Preview Card
-       html += '<div class="bg-white border border-slate-200 rounded-2xl overflow-hidden shadow-sm hover:shadow-md transition-shadow">';
-       
-        // Image (if available)
-        previewImg = data.meta.image || "";
-        if (previewImg) {
-          html +=
-            '<div class="aspect-video w-full bg-slate-100 overflow-hidden relative">';
-          html +=
-            '<img src="' +
-            self.escapeHtml(previewImg) +
-            '" class="w-full h-full object-cover" id="og-image">';
-          html += "</div>";
-        }
-       
-       // Content
-       html += '<div class="p-4">';
-       
-       // Title
-       cardTitle = data.meta.og.title || data.meta.twitter.title || data.meta.title || "";
-       if (cardTitle) {
-         html +=
-            '<h5 class="text-sm font-bold text-slate-900 leading-snug mb-2 line-clamp-2">' +
-           self.escapeHtml(cardTitle) +
-           "</h5>";
+    ogSource = data.meta && data.meta.twitter && (data.meta.twitter.title || data.meta.twitter.description || data.meta.twitter.image);
+    if (hasOgData || ogSource) {
+       previewCards = self.getOgPreviewCards(data);
+        html += '<div class="mt-6">';
+        html +=
+          '<h4 class="text-[10px] font-black text-slate-500 uppercase tracking-widest mb-3">OG Preview by Dimensions</h4>';
+        html += '<div class="space-y-4">';
+        for (previewIndex = 0; previewIndex < previewCards.length; previewIndex++) {
+          html += self.renderPreviewCard(previewCards[previewIndex], data);
        }
-       
-       // Description
-       cardDesc = data.meta.og.description || data.meta.twitter.description || data.meta.description || "";
-       if (cardDesc) {
-         html +=
-            '<p class="text-[11px] text-slate-600 leading-relaxed line-clamp-3 mb-3">' +
-           self.escapeHtml(cardDesc) +
-           "</p>";
-       }
-       
-       // URL / Domain
-       displayUrl = data.meta.og.url || data.meta.url || data.host || "";
-       if (displayUrl) {
-         html +=
-            '<div class="flex items-center gap-2 text-[10px] font-mono text-slate-500 truncate">';
-          // Favicon
-          if (data.meta.favicon) {
-            html +=
-              '<img src="' +
-              self.escapeHtml(data.meta.favicon) +
-              '" class="w-4 h-4 rounded-sm flex-shrink-0">';
-          }
-         html +=
-           '<span class="truncate">' +
-           self.escapeHtml(displayUrl) +
-           "</span></div>";
-       }
-       
-       html += "</div></div></div>";
-     }
+       html += '</div></div>';
+      }
 
     // 3. Typography Summary Cards
     html += '<div class="mt-8">';
     html +=
-      '<h4 class="text-[11px] font-black text-slate-500 uppercase tracking-widest mb-4">Typography</h4>';
+      '<h4 class="text-[11px] font-black text-slate-700 uppercase tracking-widest mb-4">Typography</h4>';
     html += '<div class="space-y-3">';
 
     fonts = data.typography || [];
@@ -349,7 +295,7 @@ var overviewTab = {
      // 6. CSS Information Grid
      html += '<div class="mt-8">';
      html +=
-       '<h4 class="text-[11px] font-black text-slate-500 uppercase tracking-widest mb-4">CSS Metrics</h4>';
+       '<h4 class="text-[11px] font-black text-slate-700 uppercase tracking-widest mb-4">CSS Metrics</h4>';
      html += '<div class="grid grid-cols-2 gap-3 pb-8">';
 
      var stats = [
@@ -461,6 +407,148 @@ var overviewTab = {
       .replace(/</g, "&lt;")
       .replace(/>/g, "&gt;")
       .replace(/"/g, "&quot;");
+  },
+
+  getOgPreviewCards: function (data) {
+    var meta = (data && data.meta) || {};
+    var og = meta.og || {};
+    var twitter = meta.twitter || {};
+    var fallbackTitle = og.title || twitter.title || meta.title || meta.pageTitle || data.title || "Untitled page";
+    var fallbackDescription = og.description || twitter.description || meta.description || meta.pageDescription || "No description available";
+    var fallbackImage = og.image || twitter.image || meta.image || "";
+    var fallbackUrl = og.url || meta.canonical || meta.url || "";
+
+    return [
+      {
+        size: "1200x630px",
+        ratioClass: "aspect-[1.91/1]",
+        platforms: [
+          { name: "Facebook", accent: "bg-[#1877F2] text-white", badge: "f" },
+          { name: "Discord", accent: "bg-[#5865F2] text-white", badge: "D" },
+          { name: "Slack", accent: "bg-[#4A154B] text-white", badge: "S" },
+          { name: "WhatsApp", accent: "bg-[#25D366] text-white", badge: "W" },
+          { name: "Pinterest", accent: "bg-[#E60023] text-white", badge: "P" }
+        ],
+        title: og.title || fallbackTitle,
+        description: og.description || fallbackDescription,
+        image: og.image || fallbackImage,
+        url: og.url || fallbackUrl
+      },
+      {
+        size: "1200x627px",
+        ratioClass: "aspect-[1.91/1]",
+        platforms: [
+          { name: "LinkedIn", accent: "bg-[#0A66C2] text-white", badge: "in" }
+        ],
+        title: og.title || twitter.title || fallbackTitle,
+        description: og.description || twitter.description || fallbackDescription,
+        image: og.image || twitter.image || fallbackImage,
+        url: og.url || meta.canonical || fallbackUrl
+      },
+      {
+        size: "1200x628px",
+        ratioClass: "aspect-[1.91/1]",
+        platforms: [
+          { name: "Twitter/X", accent: "bg-slate-900 text-white", badge: "X" }
+        ],
+        title: twitter.title || og.title || fallbackTitle,
+        description: twitter.description || og.description || fallbackDescription,
+        image: twitter.image || og.image || fallbackImage,
+        url: meta.canonical || og.url || fallbackUrl
+      },
+      {
+        size: "1200x600px",
+        ratioClass: "aspect-[2/1]",
+        platforms: [
+          { name: "Threads", accent: "bg-slate-900 text-white", badge: "@" },
+          { name: "Bluesky", accent: "bg-[#0285FF] text-white", badge: "B" }
+        ],
+        title: og.title || twitter.title || fallbackTitle,
+        description: og.description || twitter.description || fallbackDescription,
+        image: og.image || twitter.image || fallbackImage,
+        url: og.url || meta.canonical || fallbackUrl
+      }
+    ];
+  },
+
+  renderPreviewCard: function (card, data) {
+    var favicon = data && data.meta ? data.meta.favicon : "";
+    var imageHtml = this.renderPreviewImage(card);
+    var displayUrl = this.getDisplayDomain(card.url || (data && data.meta ? data.meta.url : "") || data.host || "");
+    var platformNames = this.getPreviewPlatformNames(card.platforms);
+    var platformIcons = this.renderPreviewPlatformIcons(card.platforms);
+    var html = '';
+
+    html += '<div class="bg-white border border-slate-200 rounded-2xl overflow-hidden shadow-sm">';
+    html += '<div class="flex items-center justify-between gap-3 px-4 py-3 border-b border-slate-100 bg-slate-50/70">';
+    html += '<div class="flex items-start gap-3 min-w-0">';
+    html += '<div class="flex -space-x-1 flex-shrink-0">' + platformIcons + '</div>';
+    html += '<div class="min-w-0">';
+    html += '<div class="text-[11px] font-black text-slate-900 uppercase tracking-widest truncate">' + this.escapeHtml(card.size) + '</div>';
+    html += '<div class="text-[10px] text-slate-500 truncate">' + this.escapeHtml(platformNames) + '</div>';
+    html += '</div></div>';
+    html += '<span class="px-2 py-1 rounded-full bg-slate-100 text-slate-500 text-[9px] font-black uppercase tracking-widest">' + (card.platforms ? card.platforms.length : 0) + ' platform' + ((card.platforms && card.platforms.length > 1) ? 's' : '') + '</span>';
+    html += '</div>';
+    html += imageHtml;
+    html += '<div class="p-4">';
+    html += '<div class="flex flex-wrap items-center gap-2 mb-3">' + platformIcons + '</div>';
+    html += '<h5 class="text-sm font-bold text-slate-900 leading-snug mb-2 line-clamp-2">' + this.escapeHtml(card.title || "Untitled page") + '</h5>';
+    html += '<p class="text-[11px] text-slate-600 leading-relaxed line-clamp-3 min-h-[3.75rem] mb-3">' + this.escapeHtml(card.description || "No description available") + '</p>';
+    html += '<div class="flex items-center gap-2 text-[10px] font-mono text-slate-500 min-w-0">';
+    if (favicon) {
+      html += '<img src="' + this.escapeHtml(favicon) + '" class="w-4 h-4 rounded-sm flex-shrink-0" alt="">';
+    } else {
+      html += '<span class="w-4 h-4 rounded-sm bg-slate-200 flex-shrink-0"></span>';
+    }
+    html += '<span class="truncate">' + this.escapeHtml(displayUrl || data.host || "Unknown domain") + '</span>';
+    html += '</div></div></div>';
+
+    return html;
+  },
+
+  renderPreviewImage: function (card) {
+    var html = '';
+    html += '<div class="' + card.ratioClass + ' w-full bg-slate-100 overflow-hidden relative border-b border-slate-100">';
+    if (card.image) {
+      html += '<img src="' + this.escapeHtml(card.image) + '" class="w-full h-full object-cover" alt="' + this.escapeHtml(card.size || "OG") + ' preview image">';
+    } else {
+      html += '<div class="w-full h-full flex flex-col items-center justify-center gap-2 bg-gradient-to-br from-slate-100 via-slate-50 to-white text-slate-400">';
+      html += '<div class="w-12 h-12 rounded-2xl border border-slate-200 bg-white flex items-center justify-center text-lg font-black">+</div>';
+      html += '<div class="text-[10px] font-black uppercase tracking-widest text-slate-500">No image set</div>';
+      html += '</div>';
+    }
+    html += '</div>';
+    return html;
+  },
+
+  renderPreviewPlatformIcons: function (platforms) {
+    var html = '';
+    var i;
+    var platform;
+    if (!platforms || !platforms.length) return html;
+    for (i = 0; i < platforms.length; i++) {
+      platform = platforms[i];
+      html += '<span class="inline-flex items-center justify-center min-w-[30px] h-[30px] px-2 rounded-lg text-[11px] font-black uppercase tracking-tight border border-white/80 shadow-sm ' + this.escapeHtml(platform.accent || 'bg-slate-100 text-slate-700') + '" title="' + this.escapeHtml(platform.name || '') + '">' + this.escapeHtml(platform.badge || '?') + '</span>';
+    }
+    return html;
+  },
+
+  getPreviewPlatformNames: function (platforms) {
+    var names = [];
+    var i;
+    if (!platforms || !platforms.length) return '';
+    for (i = 0; i < platforms.length; i++) {
+      names.push(platforms[i].name || 'Unknown');
+    }
+    return names.join(', ');
+  },
+
+  getDisplayDomain: function (url) {
+    var match;
+    if (!url) return "";
+    match = String(url).match(/^[a-z]+:\/\/([^\/]+)/i);
+    if (match && match[1]) return match[1];
+    return String(url).replace(/^https?:\/\//i, "");
   },
 
   showSuccess: function (msg) {

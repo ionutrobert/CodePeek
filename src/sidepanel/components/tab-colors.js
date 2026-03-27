@@ -1,14 +1,16 @@
 // Colors Tab - Premium Redesign with Culori support
 var colorsTab = {
   selectedColor: null,
-  culoriAvailable: typeof culori !== 'undefined',
+
+  isCuloriAvailable: function() {
+    return typeof culori !== 'undefined' && culori && culori.parse;
+  },
 
   // Convert any CSS color to hex using culori library
   colorToHex: function(color) {
-  if (!color || typeof color !== 'string') return null;
-  
-  // If culori is available, use it
-  if (this.culoriAvailable && culori && culori.parse) {
+    if (!color || typeof color !== 'string') return null;
+
+    if (this.isCuloriAvailable()) {
   try {
   var parsed = culori.parse(color);
   if (parsed) {
@@ -150,9 +152,9 @@ render: function (data) {
   swatches.forEach(function(swatch) {
   swatch.onclick = function() {
   var hex = this.getAttribute('data-color');
-  swatches.forEach(s => {
-  s.classList.remove("ring-2", "ring-brand-500");
-  });
+    swatches.forEach(function(s) {
+    s.classList.remove("ring-2", "ring-brand-500");
+    });
   this.classList.add("ring-2", "ring-brand-500");
   self.selectedColor = hex;
   try {
@@ -545,7 +547,7 @@ renderCategories: function (colors) {
 
     var html = '<div class="color-section">';
     html +=
-      '<h4 class="text-[11px] font-black text-slate-500 uppercase tracking-widest mb-4">' +
+      '<h4 class="text-[11px] font-black text-slate-700 uppercase tracking-widest mb-4">' +
       title +
       "</h4>";
     // Wrapping grid instead of flex-nowrap overflow-x

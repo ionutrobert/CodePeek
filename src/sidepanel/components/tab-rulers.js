@@ -41,8 +41,8 @@ render: function(pageData) {
   // Tool 1: Ruler Overlay - Neumorphic switch
   html += '<div class="flex items-center justify-between py-3 border-b" style="border-color: var(--border-subtle);">';
   html += '<div class="flex items-center gap-3">';
-  html += '<div class="neu-btn-icon" style="width: 40px; height: 40px; background: linear-gradient(145deg, var(--brand-100), var(--brand-200)); color: var(--brand-600);">';
-  html += '<svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16M4 18h16"></path></svg>';
+  html += '<div class="neu-btn-icon" style="width: 40px; height: 40px;">';
+  html += '<svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 7h16M6 7v10h12V7M8 7v3m3-3v2m3-2v3m3-3v2M6 17h12"></path></svg>';
   html += '</div>';
   html += '<div>';
   html += '<div class="text-sm font-medium" style="color: var(--text-primary);">Ruler Overlay</div>';
@@ -118,7 +118,11 @@ render: function(pageData) {
           toggleBtn.onclick = function() {
             self.isActive = !self.isActive;
             self.toggleRulers(self.isActive);
-            self.render(pageData);
+            if (self.isActive) {
+              toggleBtn.classList.add('active');
+            } else {
+              toggleBtn.classList.remove('active');
+            }
           };
         }
         
@@ -170,17 +174,19 @@ render: function(pageData) {
             };
           }
           
-          var listContainer = document.getElementById('rulers-list');
+         var listContainer = document.getElementById('rulers-list');
          if (listContainer) {
            listContainer.addEventListener('click', function(e) {
-             var deleteBtn = e.target.closest('.delete-ruler');
-             if (deleteBtn) {
-               var item = deleteBtn.closest('[data-ruler-id]');
-               if (item) {
-                 var id = parseInt(item.dataset.rulerId, 10);
-                 if (!isNaN(id)) {
-                   self.removeRuler(id);
-                   if (typeof messaging !== 'undefined') {
+              var deleteBtn = e.target.closest('.delete-ruler');
+              var item;
+              var id;
+              if (deleteBtn) {
+                item = deleteBtn.closest('[data-ruler-id]');
+                if (item) {
+                  id = parseInt(item.dataset.rulerId, 10);
+                  if (!isNaN(id)) {
+                    self.removeRuler(id);
+                    if (typeof messaging !== 'undefined') {
                      messaging.sendMessage('REMOVE_RULER', { id: id });
                    }
                  }
@@ -213,11 +219,13 @@ render: function(pageData) {
   updateMeasurement: function(data) {
     var display = document.getElementById('measurement-display');
     var container = document.getElementById('rulers-measurement');
+    var w;
+    var h;
     if (display && container) {
       if (data && data.width !== undefined) {
         container.classList.remove('hidden');
-        var w = data.width;
-        var h = data.height;
+        w = data.width;
+        h = data.height;
         if (this.unit !== 'px') {
           w = (w / 16).toFixed(2);
           h = (h / 16).toFixed(2);
@@ -235,26 +243,30 @@ render: function(pageData) {
    },
    
    updateRuler: function(id, position) {
-     var ruler = this.rulers.find(function(r) { return r.id === id; });
-     if (ruler) {
-       ruler.position = position;
-       var item = document.querySelector('#rulers-list [data-ruler-id="' + id + '"]');
-       if (item) {
-         var posDisplay = this.unit === 'px' ? position + 'px' : (position/16).toFixed(2) + 'rem';
-         var span = item.querySelector('span');
-         if (span) span.textContent = ruler.type.charAt(0).toUpperCase() + ruler.type.slice(1) + ': ' + posDisplay;
-       }
-     }
-   },
-   
-   removeRuler: function(id) {
-     var idx = this.rulers.findIndex(function(r) { return r.id === id; });
-     if (idx !== -1) {
-       this.rulers.splice(idx, 1);
-       var item = document.querySelector('#rulers-list [data-ruler-id="' + id + '"]');
-       if (item) item.remove();
-     }
-   },
+      var ruler = this.rulers.find(function(r) { return r.id === id; });
+      var item;
+      var posDisplay;
+      var span;
+      if (ruler) {
+        ruler.position = position;
+        item = document.querySelector('#rulers-list [data-ruler-id="' + id + '"]');
+        if (item) {
+          posDisplay = this.unit === 'px' ? position + 'px' : (position/16).toFixed(2) + 'rem';
+          span = item.querySelector('span');
+          if (span) span.textContent = ruler.type.charAt(0).toUpperCase() + ruler.type.slice(1) + ': ' + posDisplay;
+        }
+      }
+    },
+    
+    removeRuler: function(id) {
+      var idx = this.rulers.findIndex(function(r) { return r.id === id; });
+      var item;
+      if (idx !== -1) {
+        this.rulers.splice(idx, 1);
+        item = document.querySelector('#rulers-list [data-ruler-id="' + id + '"]');
+        if (item) item.remove();
+      }
+    },
    
     clearRulers: function() {
       this.rulers = [];

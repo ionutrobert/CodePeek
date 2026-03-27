@@ -30,6 +30,10 @@ var DEBUG = false;
   var distanceLinesEnabled = true;
   var lastHoverLog = 0;
   var contextMenuEnabled = true; // Show info box on hover during inspect
+  var codeSelectActive = false;
+  var codeSelectHintEl = null;
+  var codeSelectCursorStyleEl = null;
+  var pendingCodeSelectResponse = null;
 
   // === MEASURE MODE ===
   var measureMode = false;
@@ -37,6 +41,9 @@ var DEBUG = false;
   var measureOverlay = null;
 
   function startInspectMode() {
+    if (codeSelectActive) {
+      stopCodeSelectMode({ success: false, cancelled: true, error: "Code selection cancelled because Inspect mode started." });
+    }
     if (inspectActive) {
       if (DEBUG) console.log("Code Peek: startInspectMode called but already active");
       return;
@@ -61,6 +68,105 @@ var DEBUG = false;
     if (DEBUG) console.log("Code Peek: Inspect mode INACTIVE");
   }
 
+  function showCodeSelectHint() {
+    if (codeSelectHintEl) return;
+
+    codeSelectHintEl = document.createElement("div");
+    codeSelectHintEl.id = "code-peek-code-select-hint";
+    codeSelectHintEl.textContent = "Code Peek: click any element to capture its code. Press Esc to cancel.";
+    codeSelectHintEl.style.cssText = "position:fixed;top:16px;right:16px;max-width:320px;background:rgba(15,23,42,0.94);color:#fff;padding:10px 14px;border-radius:999px;font-size:12px;font-family:Arial,sans-serif;line-height:1.4;pointer-events:none;z-index:2147483647;box-shadow:0 10px 30px rgba(15,23,42,0.22);";
+    document.body.appendChild(codeSelectHintEl);
+  }
+
+  function hideCodeSelectHint() {
+    if (codeSelectHintEl) {
+      codeSelectHintEl.remove();
+      codeSelectHintEl = null;
+    }
+  }
+
+  function enableCodeSelectCursor() {
+    if (!codeSelectCursorStyleEl) {
+      codeSelectCursorStyleEl = document.createElement("style");
+      codeSelectCursorStyleEl.id = "code-peek-code-select-cursor";
+      codeSelectCursorStyleEl.textContent = 'html[data-code-peek-code-select="true"], html[data-code-peek-code-select="true"] * { cursor: crosshair !important; }';
+      document.head.appendChild(codeSelectCursorStyleEl);
+    }
+    document.documentElement.setAttribute("data-code-peek-code-select", "true");
+  }
+
+  function disableCodeSelectCursor() {
+    document.documentElement.removeAttribute("data-code-peek-code-select");
+  }
+
+  function stopCodeSelectMode(response) {
+    var callback = pendingCodeSelectResponse;
+
+    codeSelectActive = false;
+    pendingCodeSelectResponse = null;
+    document.removeEventListener("click", onCodeSelectClick, true);
+    document.removeEventListener("keydown", onCodeSelectKeydown, true);
+    hideCodeSelectHint();
+    disableCodeSelectCursor();
+
+    if (callback) {
+      try {
+        callback(response || { success: false, cancelled: true, error: "Code selection cancelled." });
+      } catch (e) {}
+    }
+  }
+
+  function onCodeSelectClick(e) {
+    var target = null;
+
+    if (!codeSelectActive) return;
+
+    e.preventDefault();
+    e.stopPropagation();
+    e.stopImmediatePropagation();
+
+    target = e.target;
+    if (!target || target === document.documentElement || target === document.body) {
+      target = document.body;
+    }
+
+    stopCodeSelectMode({
+      success: true,
+      data: extractElementCode(target),
+      selector: getSelector(target)
+    });
+  }
+
+  function onCodeSelectKeydown(e) {
+    if (!codeSelectActive) return;
+
+    if ((e.key && e.key === "Escape") || e.keyCode === 27) {
+      e.preventDefault();
+      e.stopPropagation();
+      stopCodeSelectMode({ success: false, cancelled: true, error: "Code selection cancelled." });
+    }
+  }
+
+  function startCodeSelectMode(sendResponse) {
+    if (inspectActive) {
+      sendResponse({ success: false, error: "Inspect mode is active. Turn it off before using the Code tab selector." });
+      return false;
+    }
+
+    if (codeSelectActive) {
+      sendResponse({ success: false, error: "The Code tab selector is already active." });
+      return false;
+    }
+
+    codeSelectActive = true;
+    pendingCodeSelectResponse = sendResponse;
+    document.addEventListener("click", onCodeSelectClick, true);
+    document.addEventListener("keydown", onCodeSelectKeydown, true);
+    enableCodeSelectCursor();
+    showCodeSelectHint();
+    return true;
+  }
+
   function onMouseMove(e) {
     if (!inspectActive) return;
     // Throttle log to once per second
@@ -81,30 +187,34 @@ var DEBUG = false;
     }
   }
 
-  function onClick(e) {
-    if (!inspectActive) {
-      if (DEBUG) console.log("Code Peek: onClick ignored (inspectActive false)");
-      return;
-    }
-    try {
-      e.preventDefault();
-      e.stopPropagation();
-      if (e.target === document.body || e.target === document.documentElement)
-        return;
+function onClick(e) {
+  // Prevent default behavior and stop propagation FIRST
+  // This ensures clicks don't trigger navigation or form submission
+  e.preventDefault();
+  e.stopPropagation();
+  e.stopImmediatePropagation();
 
-      var target = e.target;
-      // Handle transparency/inner elements by picking the topmost meaningful element if needed
-      // (Standard behavior for now is just the target)
-
-      if (DEBUG) console.log("Code Peek: clicking on", target.tagName.toLowerCase());
-      inspectElement(target);
-
-      // REMOVED: stopInspectMode() and messaging to sidepanel about stopping
-      // We want the inspector to stay ACTIVE until explicitly toggled off.
-    } catch (err) {
-      console.error("Code Peek: onClick error", err);
-    }
+  if (!inspectActive) {
+    if (DEBUG) console.log("Code Peek: onClick ignored (inspectActive false)");
+    return;
   }
+  try {
+    if (e.target === document.body || e.target === document.documentElement)
+      return;
+
+    var target = e.target;
+    // Handle transparency/inner elements by picking the topmost meaningful element if needed
+    // (Standard behavior for now is just the target)
+
+    if (DEBUG) console.log("Code Peek: clicking on", target.tagName.toLowerCase());
+    inspectElement(target);
+
+    // REMOVED: stopInspectMode() and messaging to sidepanel about stopping
+    // We want the inspector to stay ACTIVE until explicitly toggled off.
+  } catch (err) {
+    console.error("Code Peek: onClick error", err);
+  }
+}
 
   function showHighlight(el) {
     removeHighlight();
@@ -445,9 +555,48 @@ margin: {
     }
   }
 
-  // === EXTRACTION FUNCTIONS ===
+// === EXTRACTION FUNCTIONS ===
 
-  function extractColors() {
+// Extract inline styles and JS from an element
+function extractElementCode(element) {
+  if (!element) return null;
+  
+  var result = {
+    html: element.outerHTML,
+    inlineStyles: null,
+    inlineJS: []
+  };
+  
+  // Extract inline styles
+  var styleAttr = element.getAttribute('style');
+  if (styleAttr) {
+    result.inlineStyles = styleAttr;
+  }
+  
+  // Extract inline event handlers
+  var eventAttrs = [
+    'onclick', 'onmouseover', 'onmouseout', 'onmouseenter', 'onmouseleave',
+    'onload', 'onerror', 'onsubmit', 'onchange', 'onfocus', 'onblur',
+    'onkeydown', 'onkeyup', 'onkeypress', 'oninput', 'ondblclick',
+    'oncontextmenu', 'onwheel', 'ondrag', 'ondragstart', 'ondragend',
+    'ondragover', 'ondragenter', 'ondragleave', 'ondrop', 'onscroll',
+    'onresize', 'onanimationstart', 'onanimationend', 'ontransitionend'
+  ];
+  
+  eventAttrs.forEach(function(attr) {
+    var value = element.getAttribute(attr);
+    if (value) {
+      result.inlineJS.push({
+        attr: attr,
+        value: value
+      });
+    }
+  });
+  
+  return result;
+}
+
+function extractColors() {
     var colors = {};
     var elements = document.querySelectorAll(
       "body *:not(script):not(style):not(link):not(meta)",
@@ -824,9 +973,25 @@ margin: {
 
         // If background is transparent, try to get parent background
         var parent = el.parentElement;
-        while (bg === "transparent" || (bg === "rgba(0, 0, 0, 0)" && parent)) {
-          bg = window.getComputedStyle(parent).backgroundColor;
+        var depth = 0;
+        var maxDepth = 10;
+        while (
+          (bg === "transparent" || (bg === "rgba(0, 0, 0, 0)" && parent)) &&
+          parent &&
+          depth < maxDepth
+        ) {
+          try {
+            bg = window.getComputedStyle(parent).backgroundColor;
+          } catch (error) {
+            break;
+          }
+
+          if (parent.tagName === "BODY" || parent.tagName === "HTML") {
+            break;
+          }
+
           parent = parent.parentElement;
+          depth++;
         }
 
         if (fg && bg && fg !== "transparent" && bg !== "rgba(0, 0, 0, 0)") {
@@ -855,54 +1020,98 @@ margin: {
     return stats;
   }
 
-  function calculateContrastRatio(color1, color2) {
-    var c1 = parseColor(color1);
-    var c2 = parseColor(color2);
-    if (!c1 || !c2) return 1;
-    var l1 = getLuminance(c1.r, c1.g, c1.b);
-    var l2 = getLuminance(c2.r, c2.g, c2.b);
-    var lighter = Math.max(l1, l2);
-    var darker = Math.min(l1, l2);
-    return (lighter + 0.05) / (darker + 0.05);
+function calculateContrastRatio(color1, color2) {
+  var c1 = parseColor(color1);
+  var c2 = parseColor(color2);
+  if (!c1 || !c2) return 1;
+
+  // Blend colors with alpha over white background for contrast calculation
+  // This ensures semi-transparent colors are properly evaluated
+  var blended1 = blendColorOverWhite(c1);
+  var blended2 = blendColorOverWhite(c2);
+
+  var l1 = getLuminance(blended1.r, blended1.g, blended1.b);
+  var l2 = getLuminance(blended2.r, blended2.g, blended2.b);
+  var lighter = Math.max(l1, l2);
+  var darker = Math.min(l1, l2);
+  return (lighter + 0.05) / (darker + 0.05);
+}
+
+// Blend a color with alpha over a white background
+function blendColorOverWhite(color) {
+  if (color.a >= 1) {
+    return color;
+  }
+  var alpha = color.a;
+  return {
+    r: Math.round(color.r * alpha + 255 * (1 - alpha)),
+    g: Math.round(color.g * alpha + 255 * (1 - alpha)),
+    b: Math.round(color.b * alpha + 255 * (1 - alpha)),
+  };
+}
+
+function parseColor(str) {
+  if (!str || str === "transparent" || str === "rgba(0, 0, 0, 0)")
+    return null;
+
+  // Create a singleton dummy element for color normalization if it doesn't exist
+  if (!window._codePeekParser) {
+    var div = document.createElement("div");
+    div.id = "code-peek-color-parser";
+    div.style.cssText =
+      "display:none !important; visibility:hidden !important; position:fixed !important; top:-9999px !important;";
+    document.documentElement.appendChild(div);
+    window._codePeekParser = div;
   }
 
-  function parseColor(str) {
-    if (!str || str === "transparent" || str === "rgba(0, 0, 0, 0)")
-      return null;
+  try {
+    window._codePeekParser.style.color = "rgb(0,0,0)"; // Baseline reset
+    window._codePeekParser.style.color = str;
+    var computed = window.getComputedStyle(window._codePeekParser).color;
 
-    // Create a singleton dummy element for color normalization if it doesn't exist
-    if (!window._codePeekParser) {
-      var div = document.createElement("div");
-      div.id = "code-peek-color-parser";
-      div.style.cssText =
-        "display:none !important; visibility:hidden !important; position:fixed !important; top:-9999px !important;";
-      document.documentElement.appendChild(div);
-      window._codePeekParser = div;
+    // Browser returns color in rgb() or rgba() format after normalization
+    // Handles all modern color formats: oklab, lab, color(), hex, rgb, rgba
+    // Regex captures: rgb(r,g,b) or rgba(r,g,b,a) with various alpha formats
+    var m = computed.match(
+      /^rgba?\(\s*(\d+)\s*,\s*(\d+)\s*,\s*(\d+)\s*(?:,\s*([01]?\.\d+|\d+\.?\d*))?\s*\)$/,
+    );
+    if (m) {
+      var alpha = 1;
+      if (m[4] !== undefined && m[4] !== "") {
+        alpha = parseFloat(m[4]);
+        // Clamp alpha to valid range
+        if (alpha < 0) alpha = 0;
+        if (alpha > 1) alpha = 1;
+      }
+      return {
+        r: parseInt(m[1]),
+        g: parseInt(m[2]),
+        b: parseInt(m[3]),
+        a: alpha,
+      };
     }
 
-    try {
-      window._codePeekParser.style.color = "rgb(0,0,0)"; // Baseline reset
-      window._codePeekParser.style.color = str;
-      var computed = window.getComputedStyle(window._codePeekParser).color;
-
-      // Browser returns color in rgb() or rgba() format after normalization
-      var m = computed.match(
-        /^rgba?\((\d+),\s*(\d+),\s*(\d+)(?:,\s*(\d?\.\d+|\d+))?\)/,
-      );
-      if (m) {
+    // Fallback: try parsing hex colors directly
+    if (computed.charAt(0) === "#") {
+      var hex = computed.slice(1);
+      if (hex.length === 3) {
+        hex = hex[0] + hex[0] + hex[1] + hex[1] + hex[2] + hex[2];
+      }
+      if (hex.length === 6 && /^[0-9a-fA-F]{6}$/.test(hex)) {
         return {
-          r: parseInt(m[1]),
-          g: parseInt(m[2]),
-          b: parseInt(m[3]),
-          a: m[4] !== undefined ? parseFloat(m[4]) : 1,
+          r: parseInt(hex.slice(0, 2), 16),
+          g: parseInt(hex.slice(2, 4), 16),
+          b: parseInt(hex.slice(4, 6), 16),
+          a: 1,
         };
       }
-    } catch (e) {
-      console.warn("Code Peek: Color normalization failed", str);
     }
-
-    return null;
+  } catch (e) {
+    console.warn("Code Peek: Color normalization failed", str, e.message);
   }
+
+  return null;
+}
 
   function getLuminance(r, g, b) {
     var a = [r, g, b].map(function (v) {
@@ -925,68 +1134,305 @@ margin: {
      return firstClass ? "." + firstClass : el.tagName.toLowerCase();
    }
 
-   function detectTechStack() {
-     var result = {
-       frameworks: [],
-       css: [],
-       build: [],
-       confidence: {}
-     };
-     
-     // Detect JavaScript frameworks
-     if (window.React || window.ReactDOM) result.frameworks.push('React');
-     if (window.Vue) result.frameworks.push('Vue');
-     if (window.angular) result.frameworks.push('Angular');
-     if (window.svelte) result.frameworks.push('Svelte');
-     if (window.Ember) result.frameworks.push('Ember');
-     if (window.Backbone) result.frameworks.push('Backbone');
-     
-     // Detect jQuery
-     if (window.jQuery) {
-       result.frameworks.push('jQuery');
-       if (window.jQuery.fn && window.jQuery.fn.modal) result.css.push('Bootstrap (via jQuery)');
-     }
-     
-     // Detect Tailwind CSS by utility class patterns
-     var html = document.documentElement.innerHTML || '';
-     if (/\b(bg|text|flex|grid|p|m|pt|pr|pb|pl|mx|my|w|h|min-w|max-w|border|rounded|shadow|opacity|z|inset|absolute|relative|fixed|sticky)-[a-z0-9]+\b/.test(html)) {
-       result.css.push('Tailwind CSS');
-     }
-     
-     // Detect Bootstrap via class patterns
-     if (/\b(container|row|col(?:-sm|-md|-lg|-xl)?)\b/.test(html)) {
-       result.css.push('Bootstrap');
-     }
-     
-     // Detect Bulma
-     if (/\b(is-active|is-primary|is-success|has-text-centered)\b/.test(html)) {
-       result.css.push('Bulma');
-     }
-     
-     // Detect build tools from script src
-     var scripts = document.querySelectorAll('script[src]');
-     scripts.forEach(function(s) {
-       var src = s.src.toLowerCase();
-       if (src.includes('webpack')) result.build.push('Webpack');
-       if (src.includes('vite')) result.build.push('Vite');
-       if (src.includes('parcel')) result.build.push('Parcel');
-       if (src.includes('next')) result.frameworks.push('Next.js');
-       if (src.includes('nuxt')) result.frameworks.push('Nuxt.js');
-       if (src.includes('gatsby')) result.frameworks.push('Gatsby');
-     });
-     
-     // Deduplicate
-     result.frameworks = [...new Set(result.frameworks)];
-     result.css = [...new Set(result.css)];
-     result.build = [...new Set(result.build)];
-     
-     // Simple confidence based on signals count
-     result.confidence.overall = Math.min(100, (result.frameworks.length + result.css.length + result.build.length) * 25);
-     
-     return result;
-   }
+// === BROKEN LINK DETECTION ===
+function checkBrokenLinks() {
+  var links = Array.from(document.querySelectorAll('a[href]'));
+  var currentOrigin = window.location.origin;
+  var currentUrl = window.location.href.split('#')[0].split('?')[0];
 
-    if (
+  // Filter: internal links only, skip non-HTTP protocols
+  var internalLinks = links
+    .filter(function(link) {
+      var href = link.href;
+      // Skip empty or invalid
+      if (!href || href === '') return false;
+      // Skip javascript: protocol
+      if (href.indexOf('javascript:') === 0) return false;
+      // Skip mailto: protocol
+      if (href.indexOf('mailto:') === 0) return false;
+      // Skip tel: protocol
+      if (href.indexOf('tel:') === 0) return false;
+      // Skip anchor-only links (same page navigation)
+      if (href.indexOf('#') === 0) return false;
+      // Skip if href is just anchor on current page
+      if (href.indexOf('#') > 0) {
+        var baseHref = href.split('#')[0];
+        if (baseHref === currentUrl || baseHref === '') return false;
+      }
+      // Only include internal links (same origin)
+      if (href.indexOf(currentOrigin) !== 0) return false;
+      return true;
+    })
+    .slice(0, 50); // Limit to first 50 to prevent hang
+
+  // Return link info (URL and text)
+  return internalLinks.map(function(link) {
+    return {
+      url: link.href,
+      text: (link.innerText || link.textContent || '').trim().slice(0, 50)
+    };
+  });
+}
+
+function detectTechStack() {
+  var result = {
+    frameworks: [],
+    css: [],
+    build: [],
+    cms: [],
+    plugins: [],
+    confidence: {}
+  };
+
+  var html = document.documentElement.innerHTML || '';
+  var bodyClasses = (document.body && document.body.className) || '';
+
+  // Detect JavaScript frameworks
+  if (window.React || window.ReactDOM) result.frameworks.push('React');
+  if (window.Vue) result.frameworks.push('Vue');
+  if (window.angular) result.frameworks.push('Angular');
+  if (window.svelte) result.frameworks.push('Svelte');
+  if (window.Ember) result.frameworks.push('Ember');
+  if (window.Backbone) result.frameworks.push('Backbone');
+
+  // Detect Next.js via __NEXT_DATA__ global or __next element
+  if (window.__NEXT_DATA__ || document.getElementById('__next')) {
+    result.frameworks.push('Next.js');
+  }
+
+  // Detect Nuxt via __NUXT__ global or __nuxt element
+  if (window.__NUXT__ || document.getElementById('__nuxt') || document.getElementById('__layout')) {
+    result.frameworks.push('Nuxt');
+  }
+
+  // Detect SvelteKit via sveltekit in scripts
+  var svelteKitScripts = document.querySelectorAll('script[src*="sveltekit"], script[type="module"]');
+  svelteKitScripts.forEach(function(s) {
+    if (s.src && s.src.indexOf('sveltekit') !== -1) {
+      if (result.frameworks.indexOf('SvelteKit') === -1) result.frameworks.push('SvelteKit');
+    }
+  });
+
+  // Detect Astro via astro: prefix in scripts or __astro__ global
+  if (window.__astro__ || html.indexOf('astro:') !== -1) {
+    result.frameworks.push('Astro');
+  }
+
+  // Detect jQuery
+  if (window.jQuery) {
+    result.frameworks.push('jQuery');
+    if (window.jQuery.fn && window.jQuery.fn.modal) result.css.push('Bootstrap (via jQuery)');
+  }
+
+  // Detect Tailwind CSS by utility class patterns
+  if (/\b(bg|text|flex|grid|p|m|pt|pr|pb|pl|mx|my|w|h|min-w|max-w|border|rounded|shadow|opacity|z|inset|absolute|relative|fixed|sticky)-[a-z0-9]+\b/.test(html)) {
+    result.css.push('Tailwind CSS');
+  }
+
+  // Detect Bootstrap via class patterns
+  if (/\b(container|row|col(?:-sm|-md|-lg|-xl)?)\b/.test(html)) {
+    result.css.push('Bootstrap');
+  }
+
+  // Detect Bulma
+  if (/\b(is-active|is-primary|is-success|has-text-centered)\b/.test(html)) {
+    result.css.push('Bulma');
+  }
+
+  // Detect build tools from script src
+  var scripts = document.querySelectorAll('script[src]');
+  scripts.forEach(function(s) {
+    var src = s.src.toLowerCase();
+    if (src.indexOf('webpack') !== -1 && result.build.indexOf('Webpack') === -1) result.build.push('Webpack');
+    if (src.indexOf('vite') !== -1 && result.build.indexOf('Vite') === -1) result.build.push('Vite');
+    if (src.indexOf('parcel') !== -1 && result.build.indexOf('Parcel') === -1) result.build.push('Parcel');
+    if (src.indexOf('next') !== -1 && result.frameworks.indexOf('Next.js') === -1) result.frameworks.push('Next.js');
+    if (src.indexOf('nuxt') !== -1 && result.frameworks.indexOf('Nuxt') === -1) result.frameworks.push('Nuxt');
+    if (src.indexOf('gatsby') !== -1 && result.frameworks.indexOf('Gatsby') === -1) result.frameworks.push('Gatsby');
+  });
+
+  // === CMS DETECTION ===
+
+  // WordPress detection - multiple signals
+  var wordpressSignals = 0;
+  var wpPluginNames = [];
+
+  // Check for wp- class prefixes
+  if (/\bwp-[a-z]+\b/.test(bodyClasses) || /\bwp-[a-z]+\b/.test(html)) {
+    wordpressSignals++;
+  }
+
+  // Check for /wp-content/ in URLs
+  var assets = document.querySelectorAll('script[src], link[href], img[src]');
+  assets.forEach(function(asset) {
+    var url = (asset.src || asset.href || '').trim();
+    if (!url) return;
+    var normalized = url.toLowerCase();
+    if (normalized.indexOf('/wp-content/') !== -1) {
+      wordpressSignals++;
+    }
+    // Extract plugin names
+    var pluginMatch = url.match(/\/wp-content\/plugins\/([^\/?#]+)/i);
+    if (pluginMatch && pluginMatch[1]) {
+      var pluginName = pluginMatch[1];
+      try {
+        pluginName = decodeURIComponent(pluginName);
+      } catch (e) {}
+      pluginName = pluginName.replace(/[^a-zA-Z0-9_-]/g, '');
+      if (pluginName && wpPluginNames.indexOf(pluginName) === -1) {
+        wpPluginNames.push(pluginName);
+      }
+    }
+  });
+
+  // Check for window.wp global
+  if (window.wp) {
+    wordpressSignals++;
+  }
+
+  // Check for WordPress-specific meta generator
+  var metaGenerator = document.querySelector('meta[name="generator"][content*="WordPress"]');
+  if (metaGenerator) {
+    wordpressSignals++;
+  }
+
+  if (wordpressSignals > 0) {
+    result.cms.push({
+      name: 'WordPress',
+      plugins: wpPluginNames.sort()
+    });
+  }
+
+  // WooCommerce detection
+  var wooCommerceDetected = false;
+  if (window.wc || window.wcSettings) {
+    wooCommerceDetected = true;
+  }
+  if (/\bwoocommerce\b|\bwc-\w+\b/.test(bodyClasses) || /\bwoocommerce\b/.test(html)) {
+    wooCommerceDetected = true;
+  }
+  if (wooCommerceDetected) {
+    result.plugins.push('WooCommerce');
+  }
+
+  // Elementor detection
+  var elementorDetected = false;
+  if (window.elementorFrontend || window.elementor) {
+    elementorDetected = true;
+  }
+  if (/\belementor\b|\belementor-\w+\b/.test(bodyClasses) || /\belementor\b/.test(html)) {
+    elementorDetected = true;
+  }
+  var elementorStyles = document.querySelectorAll('link[href*="elementor"]');
+  if (elementorStyles.length > 0) {
+    elementorDetected = true;
+  }
+  if (elementorDetected) {
+    result.plugins.push('Elementor');
+  }
+
+  // Yoast SEO detection
+  if (window.yoast || window.YoastSEO) {
+    result.plugins.push('Yoast SEO');
+  }
+
+  // Jetpack detection
+  if (window.Jetpack) {
+    result.plugins.push('Jetpack');
+  }
+
+  // Shopify detection
+  var shopifyDetected = false;
+  if (window.Shopify) {
+    shopifyDetected = true;
+  }
+  var shopifyScripts = document.querySelectorAll('script[src*="cdn.shopify.com"], script[src*="shopify"]');
+  if (shopifyScripts.length > 0) {
+    shopifyDetected = true;
+  }
+  if (shopifyDetected && !result.cms.some(function(c) { return c.name === 'Shopify'; })) {
+    result.cms.push({ name: 'Shopify', plugins: [] });
+  }
+
+  // Drupal detection
+  var drupalDetected = false;
+  if (window.Drupal) {
+    drupalDetected = true;
+  }
+  var drupalSettings = document.querySelector('script[data-drupal-selector]');
+  if (drupalSettings) {
+    drupalDetected = true;
+  }
+  if (/\bDrupal\b/.test(html)) {
+    drupalDetected = true;
+  }
+  if (drupalDetected && !result.cms.some(function(c) { return c.name === 'Drupal'; })) {
+    result.cms.push({ name: 'Drupal', plugins: [] });
+  }
+
+  // Joomla detection
+  if (window.Joomla) {
+    if (!result.cms.some(function(c) { return c.name === 'Joomla'; })) {
+      result.cms.push({ name: 'Joomla', plugins: [] });
+    }
+  }
+
+  // Webflow detection
+  var webflowDetected = false;
+  if (window.Webflow) {
+    webflowDetected = true;
+  }
+  var webflowScripts = document.querySelectorAll('script[src*="webflow"]');
+  if (webflowScripts.length > 0) {
+    webflowDetected = true;
+  }
+  if (/\bwf-\w+\b/.test(html)) {
+    webflowDetected = true;
+  }
+  if (webflowDetected && !result.cms.some(function(c) { return c.name === 'Webflow'; })) {
+    result.cms.push({ name: 'Webflow', plugins: [] });
+  }
+
+  // Squarespace detection
+  if (window.Squarespace) {
+    if (!result.cms.some(function(c) { return c.name === 'Squarespace'; })) {
+      result.cms.push({ name: 'Squarespace', plugins: [] });
+    }
+  }
+
+  // Wix detection
+  if (window.wixBiSession || window.wixPerformanceMeasurements) {
+    if (!result.cms.some(function(c) { return c.name === 'Wix'; })) {
+      result.cms.push({ name: 'Wix', plugins: [] });
+    }
+  }
+
+  // Deduplicate arrays
+  var seen = {};
+  result.frameworks = result.frameworks.filter(function(item) {
+    return seen.hasOwnProperty(item) ? false : (seen[item] = true);
+  });
+  seen = {};
+  result.css = result.css.filter(function(item) {
+    return seen.hasOwnProperty(item) ? false : (seen[item] = true);
+  });
+  seen = {};
+  result.build = result.build.filter(function(item) {
+    return seen.hasOwnProperty(item) ? false : (seen[item] = true);
+  });
+  seen = {};
+  result.plugins = result.plugins.filter(function(item) {
+    return seen.hasOwnProperty(item) ? false : (seen[item] = true);
+  });
+
+  // Calculate confidence based on signals count
+  var totalSignals = result.frameworks.length + result.css.length + result.build.length + result.cms.length + result.plugins.length;
+  result.confidence.overall = Math.min(100, totalSignals * 15);
+
+  return result;
+}
+
+if (
      typeof chrome !== "undefined" &&
      chrome.runtime &&
      chrome.runtime.onMessage
@@ -1009,23 +1455,49 @@ margin: {
           case "EXTRACT_TYPOGRAPHY":
             sendResponse({ success: true, data: extractTypography() });
             break;
-          case "EXTRACT_ASSETS":
-            sendResponse({ success: true, data: extractAssets() });
-            break;
-          case "START_INSPECT_MODE":
-            startInspectMode();
-            sendResponse({ success: true });
-            break;
+case "EXTRACT_ASSETS":
+          sendResponse({ success: true, data: extractAssets() });
+          break;
+         case "EXTRACT_ELEMENT_CODE":
+           var selector = msg.payload && msg.payload.selector;
+           var element = null;
+           if (selector) {
+             try {
+              element = document.querySelector(selector);
+            } catch (e) {}
+          }
+           if (element) {
+             sendResponse({ success: true, data: extractElementCode(element) });
+           } else {
+             sendResponse({ success: false, error: "Element not found" });
+           }
+           break;
+         case "START_CODE_ELEMENT_SELECT":
+           return startCodeSelectMode(sendResponse);
+         case "STOP_CODE_ELEMENT_SELECT":
+           stopCodeSelectMode({ success: false, cancelled: true, error: "Code selection cancelled." });
+           sendResponse({ success: true });
+           break;
+         case "START_INSPECT_MODE":
+             startInspectMode();
+             sendResponse({ success: true });
+             break;
           case "STOP_INSPECT_MODE":
             stopInspectMode();
             sendResponse({ success: true });
             break;
-          case "SCROLL_TO":
-            window.scrollTo(msg.payload.x || 0, msg.payload.y || 0);
-            setTimeout(function () {
-              sendResponse({ success: true });
-            }, 150); // Give time for rendering
-            break;
+case "SCROLL_TO":
+      window.scrollTo(msg.payload.x || 0, msg.payload.y || 0);
+      setTimeout(function () {
+        sendResponse({ success: true });
+      }, 150);
+      break;
+    case "SCROLL_TO_POSITION":
+      window.scrollTo(0, msg.payload.y || 0);
+      setTimeout(function () {
+        sendResponse({ success: true });
+      }, 150);
+      break;
             case "GET_SCROLL_DIMENSIONS":
              sendResponse({
                success: true,
@@ -1124,12 +1596,18 @@ margin: {
                   sendResponse({ success: true });
                   break;
                 
-              case "GET_TECH_STACK":
-              sendResponse({
-                success: true,
-                data: detectTechStack()
-              });
-              break;
+case "GET_TECH_STACK":
+          sendResponse({
+            success: true,
+            data: detectTechStack()
+          });
+          break;
+        case "CHECK_BROKEN_LINKS":
+          sendResponse({
+            success: true,
+            data: checkBrokenLinks()
+          });
+          break;
             case "TOGGLE_RULERS":
               if (msg.payload.enabled) {
                 enableRulersOverlay(msg.payload.unit);
@@ -1186,7 +1664,9 @@ margin: {
   function extractMetaTags() {
     var meta = {
       title: document.title,
+      pageTitle: document.title,
       description: "",
+      pageDescription: "",
       image: "",
       url: window.location.href,
       favicon: "",
@@ -1195,17 +1675,32 @@ margin: {
       canonical: ""
     };
 
+    function toAbsoluteUrl(url) {
+      var resolver;
+      if (!url) return "";
+      try {
+        resolver = document.createElement("a");
+        resolver.href = url;
+        return resolver.href || url;
+      } catch (e) {
+        return url;
+      }
+    }
+
     // Get meta description
     var descEl = document.querySelector('meta[name="description"]');
-    if (descEl) meta.description = descEl.getAttribute("content") || "";
+    if (descEl) {
+      meta.description = descEl.getAttribute("content") || "";
+      meta.pageDescription = meta.description;
+    }
 
     // Get canonical URL
     var canonicalEl = document.querySelector('link[rel="canonical"]');
-    if (canonicalEl) meta.canonical = canonicalEl.getAttribute("href") || "";
+    if (canonicalEl) meta.canonical = toAbsoluteUrl(canonicalEl.getAttribute("href") || "");
 
     // Get favicon
     var faviconEl = document.querySelector('link[rel="icon"]') || document.querySelector('link[rel="shortcut icon"]');
-    if (faviconEl) meta.favicon = faviconEl.getAttribute("href") || "";
+    if (faviconEl) meta.favicon = toAbsoluteUrl(faviconEl.getAttribute("href") || "");
 
     // Open Graph tags
     var ogTags = document.querySelectorAll('meta[property^="og:"]');
@@ -1214,7 +1709,9 @@ margin: {
       var content = ogTags[i].getAttribute("content") || "";
       if (prop) {
         var key = prop.replace(/^og:/, "").toLowerCase();
-        meta.og[key] = content;
+        meta.og[key] = (key === "image" || key === "url")
+          ? toAbsoluteUrl(content)
+          : content;
       }
     }
 
@@ -1225,7 +1722,9 @@ margin: {
       var content = twitterTags[j].getAttribute("content") || "";
       if (name) {
         var key = name.replace(/^twitter:/, "").toLowerCase();
-        meta.twitter[key] = content;
+        meta.twitter[key] = key === "image"
+          ? toAbsoluteUrl(content)
+          : content;
       }
     }
 
