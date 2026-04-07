@@ -86,22 +86,22 @@ var CodePeekApp = {
   bindEvents: function () {
     var self = this;
 
-    // Navigation - event delegation on tab-bar container (or document if container not yet)
-    var tabBar = document.getElementById("tab-bar");
-    if (tabBar) {
-      tabBar.addEventListener("click", function(e) {
-        var btn = e.target.closest(".nav-button");
-        if (btn && btn.dataset.tab) {
-          self.switchTab(btn.dataset.tab);
-        }
-      });
-    } else {
-      // Fallback
-      document.addEventListener("click", function(e) {
-        var btn = e.target.closest(".nav-button");
-        if (btn && btn.dataset.tab) self.switchTab(btn.dataset.tab);
-      });
-    }
+// Navigation - event delegation on tab-bar container (or document if container not yet)
+var tabBar = document.getElementById("tab-bar");
+if (tabBar) {
+tabBar.addEventListener("click", function(e) {
+var btn = e.target.closest(".nav-item");
+if (btn && btn.dataset.tab) {
+self.switchTab(btn.dataset.tab);
+}
+});
+} else {
+// Fallback
+document.addEventListener("click", function(e) {
+var btn = e.target.closest(".nav-item");
+if (btn && btn.dataset.tab) self.switchTab(btn.dataset.tab);
+});
+}
 
     // Subtabs for Colors
     document.querySelectorAll(".color-subtab-button").forEach(function (btn) {
@@ -308,10 +308,10 @@ var CodePeekApp = {
     var activeEl = document.getElementById("tab-" + tabId);
     if (activeEl) activeEl.classList.remove("hidden");
 
-    document.querySelectorAll(".nav-button").forEach(function (btn) {
-      if (btn.dataset.tab === tabId) btn.classList.add("active");
-      else btn.classList.remove("active");
-    });
+document.querySelectorAll(".nav-item").forEach(function (btn) {
+if (btn.dataset.tab === tabId) btn.classList.add("active");
+else btn.classList.remove("active");
+});
 
     // Persist active tab selection
     if (save) this.saveSettings();
