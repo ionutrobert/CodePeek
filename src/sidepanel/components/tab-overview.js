@@ -1,4 +1,4 @@
-// Overview Tab - Plain ES5 JavaScript
+// Overview Tab - Nothing Design System
 function formatBytes(bytes) {
   if (bytes === 0) return "0 B";
   var k = 1024;
@@ -9,14 +9,12 @@ function formatBytes(bytes) {
 
 var overviewTab = {
   load: function () {
-    console.log("Loading overview tab...");
     var self = this;
     var container = document.getElementById("tab-overview");
     if (container) {
-      container.innerHTML = '<div class="space-y-6 pb-6"><div class="flex items-center justify-between mb-4"><div class="h-8 w-32 bg-slate-200 rounded animate-pulse"></div><div class="w-20 h-8 bg-slate-200 rounded animate-pulse"></div></div><div class="px-1 mb-6"><div class="h-7 w-3/4 bg-slate-200 rounded animate-pulse mb-2"></div><div class="h-4 w-1/2 bg-slate-200 rounded animate-pulse"></div></div><div class="grid grid-cols-2 gap-3 mb-6"><div class="h-20 bg-slate-200 rounded-2xl animate-pulse"></div><div class="h-20 bg-slate-200 rounded-2xl animate-pulse"></div></div><div class="bg-slate-50 border border-slate-200 rounded-2xl p-4 mb-6"><div class="h-5 w-1/3 bg-slate-200 rounded animate-pulse mb-4"></div><div class="space-y-2"><div class="h-4 w-full bg-slate-200 rounded animate-pulse"></div><div class="h-4 w-5/6 bg-slate-200 rounded animate-pulse"></div></div></div></div>';
+      container.innerHTML = '<div class="loading-state"><div class="loading-spinner"></div><div class="loading-label">SCANNING</div></div>';
     }
 
-    // 1. Initial Scan
     messaging.extractAll(function (response) {
       if (response && response.success && response.data) {
         self.renderStats(response.data);
@@ -29,370 +27,184 @@ var overviewTab = {
   renderStats: function (data) {
     var self = this;
     var container = document.getElementById("tab-overview");
-    var hasOgData;
-    var ogSource;
-    var previewCards;
-    var previewIndex;
-    var fonts;
-    var headings;
-    var body;
-    var colors;
-    var issueCount;
-    var worst;
-    var issue;
-    var m;
-    var x;
-    var y;
-    var n;
     if (!container) return;
 
     if (!data) {
-      container.innerHTML =
-        '<div class="space-y-6 pb-6 animate-in fade-in duration-300">' +
-        '<div class="flex items-center gap-3 px-1 pt-1">' +
-        '<div class="relative w-5 h-5 flex-shrink-0">' +
-        '<span class="absolute inset-0 rounded-full border-2 border-brand-100"></span>' +
-        '<span class="absolute inset-0 rounded-full border-2 border-transparent border-t-brand-500 border-r-brand-400 animate-spin"></span>' +
-        '</div>' +
-        '<div>' +
-        '<div class="text-[10px] font-black uppercase tracking-widest text-brand-500">Loading Overview</div>' +
-        '<div class="text-[11px] text-slate-500">Scanning page styles and metadata...</div>' +
-        '</div>' +
-        '</div>' +
-        '<div class="space-y-3">' +
-        '<div class="h-20 rounded-2xl border border-brand-100 bg-gradient-to-r from-brand-50 via-white to-brand-50 animate-pulse"></div>' +
-        '<div class="grid grid-cols-2 gap-3">' +
-        '<div class="h-16 rounded-2xl border border-brand-100 bg-brand-50/80 animate-pulse"></div>' +
-        '<div class="h-16 rounded-2xl border border-brand-100 bg-brand-50/80 animate-pulse"></div>' +
-        '</div>' +
-        '<div class="h-28 rounded-2xl border border-slate-200 bg-slate-50/80 animate-pulse"></div>' +
-        '</div>' +
-        '</div>';
+      container.innerHTML = '<div class="loading-state"><div class="loading-spinner"></div><div class="loading-label">LOADING</div></div>';
       return;
     }
 
-// Build the Dashboard HTML from scratch with consistent neumorphic design
-  var html =
-  '<div class="tab-content">';
+    var html = '<div class="tab-content">';
 
-  // Standardized Page Header
-  html += '<div class="neu-page-header">';
-  html += '<div class="neu-section-dot"></div>';
-  html += '<div>';
-  html += '<h2 class="neu-page-title">Overview</h2>';
-  html += '<div class="neu-page-subtitle">Page Summary</div>';
-  html += '</div>';
-  html += '</div>';
+    // Page Title (Primary Layer)
+    html += '<div class="overview-hero">';
+    html += '<div class="hero-title">' + self.escapeHtml(data.title || "UNTITLED") + '</div>';
+    html += '<div class="hero-host">' + self.escapeHtml(data.host || "unknown-host") + '</div>';
+    html += '</div>';
 
-    // 2. Site Details (Title and Host)
-    html += '<div class="px-1">';
-    html +=
-      '<h3 class="text-lg font-black text-slate-900 truncate leading-tight mb-1">' +
-      self.escapeHtml(data.title || "Target Site") +
-      "</h3>";
-    html +=
-      '<p class="text-[11px] text-slate-500 font-mono truncate">' +
-      self.escapeHtml(data.host || "unknown-host") +
-      "</p>";
-    html += "</div>";
+    // Typography Stats (Secondary Layer)
+    var fonts = data.typography || [];
+    var headings = fonts.length > 0 ? fonts[0].family.split(",")[0].replace(/['"]/g, "") : "Not detected";
+    var body = fonts.length > 1 ? fonts[1].family.split(",")[0].replace(/['"]/g, "") : headings;
 
-    hasOgData = data.meta && data.meta.og && (data.meta.og.title || data.meta.og.description || data.meta.og.image);
-    ogSource = data.meta && data.meta.twitter && (data.meta.twitter.title || data.meta.twitter.description || data.meta.twitter.image);
-    if (hasOgData || ogSource) {
-       previewCards = self.getOgPreviewCards(data);
-        html += '<div class="mt-6">';
-        html +=
-          '<h4 class="text-[10px] font-black text-slate-500 uppercase tracking-widest mb-3">OG Preview by Dimensions</h4>';
-        html += '<div class="space-y-4">';
-        for (previewIndex = 0; previewIndex < previewCards.length; previewIndex++) {
-          html += self.renderPreviewCard(previewCards[previewIndex], data);
-       }
-       html += '</div></div>';
-      }
+    html += '<div class="stat-section">';
+    html += '<div class="section-label">TYPOGRAPHY</div>';
+    html += '<div class="stat-grid">';
+    html += '<div class="stat-row"><span class="stat-label">HEADINGS</span><span class="stat-value">' + self.escapeHtml(headings) + '</span></div>';
+    html += '<div class="stat-row"><span class="stat-label">BODY</span><span class="stat-value">' + self.escapeHtml(body) + '</span></div>';
+    html += '</div>';
+    html += '</div>';
 
-    // 3. Typography Summary Cards
-    html += '<div class="mt-8">';
-    html +=
-      '<h4 class="text-[11px] font-black text-slate-700 uppercase tracking-widest mb-4">Typography</h4>';
-    html += '<div class="space-y-3">';
-
-    fonts = data.typography || [];
-    headings = "No headings found";
-    body = "Not detected";
-
-    // Pick most prominent
-    if (fonts.length > 0) {
-      headings = fonts[0].family.split(",")[0].replace(/['"]/g, "");
-      body = (fonts[1] || fonts[0]).family.split(",")[0].replace(/['"]/g, "");
+    // Color Palette (Tertiary Layer)
+    var colors = data.colors || [];
+    html += '<div class="stat-section">';
+    html += '<div class="section-label">COLORS</div>';
+    html += '<div class="color-grid">';
+    for (var m = 0; m < Math.min(colors.length, 12); m++) {
+      html += '<div class="color-swatch" style="background-color:' + colors[m].color + '" title="' + colors[m].color + '"></div>';
     }
-
-    html +=
-      '<div class="p-5 bg-white border border-slate-200 rounded-2xl shadow-sm hover:border-brand-300 transition-all flex items-center justify-between group">';
-    html += "<div>";
-    html +=
-      '<div class="text-[9px] font-black text-slate-700 uppercase tracking-widest mb-1">HEADINGS</div>';
-    html +=
-      '<div class="text-[15px] font-black text-slate-900">' +
-      headings +
-      "</div></div>";
-    html +=
-      '<div class="w-10 h-10 rounded-xl bg-brand-50 flex items-center justify-center text-brand-600 font-black">H1</div>';
-    html += "</div>";
-
-    html +=
-      '<div class="p-5 bg-white border border-slate-200 rounded-2xl shadow-sm hover:border-brand-300 transition-all flex items-center justify-between group">';
-    html += "<div>";
-    html +=
-      '<div class="text-[9px] font-black text-slate-700 uppercase tracking-widest mb-1">BODY TEXT</div>';
-    html +=
-      '<div class="text-[15px] font-black text-slate-900">' +
-      body +
-      "</div></div>";
-    html +=
-      '<div class="w-10 h-10 rounded-xl bg-slate-50 flex items-center justify-center text-slate-400 font-bold">Aa</div>';
-    html += "</div>";
-    html += "</div></div>";
-
-    // 4. Color Palette Section
-    html += '<div class="mt-8">';
-    html += '<div class="flex items-center justify-between mb-4">';
-    html +=
-      '<h4 class="text-[11px] font-black text-slate-700 uppercase tracking-widest">Color Palette</h4>';
-    html +=
-      '<button class="text-[10px] font-black text-brand-500 uppercase tracking-widest hover:text-brand-600 transition-colors cursor-pointer" id="overview-show-colors">Show all</button></div>';
-
-    colors = data.colors || [];
-    html += '<div class="grid grid-cols-6 gap-2">';
-    for (m = 0; m < Math.min(colors.length, 12); m++) {
-      html +=
-        '<div class="aspect-square rounded-lg border border-slate-300/30 shadow-sm flex-shrink-0 cursor-pointer hover:scale-110 transition-transform" style="background-color:' +
-        colors[m].color +
-        '" title="' +
-        colors[m].color +
-        '"></div>';
+    if (colors.length === 0) {
+      html += '<div class="empty-label">NO COLORS DETECTED</div>';
     }
-    if (colors.length === 0)
-      html +=
-        '<div class="col-span-full text-[10px] text-slate-500 font-bold italic uppercase tracking-widest opacity-60">No colors detected</div>';
-    html += "</div></div>";
+    html += '</div>';
+    '<button class="link-btn" id="overview-show-colors">SHOW ALL →</button>';
+    html += '</div>';
 
-    // 5. Contrast Scanner
-    html += '<div class="mt-8">';
-    issueCount = (data.contrastIssues || []).length;
-    html += '<div class="flex items-center gap-2 mb-4">';
-    html +=
-      '<h4 class="text-[11px] font-black text-slate-700 uppercase tracking-widest">Contrast Scanner</h4>';
-    html +=
-      '<span class="px-2 py-0.5 bg-slate-100 text-slate-500 text-[10px] font-black rounded-md">' +
-      issueCount +
-      "</span></div>";
-
+    // Contrast Issues
+    var issueCount = (data.contrastIssues || []).length;
+    html += '<div class="stat-section">';
+    html += '<div class="section-label">CONTRAST</div>';
     if (issueCount > 0) {
-      // Find Worst Aspect
-      worst = data.contrastIssues[0];
-      html +=
-        '<div class="p-5 bg-white border border-slate-100 rounded-[28px] shadow-sm group hover:border-brand-100 transition-all">';
-      html += '<div class="flex items-center justify-between mb-4">';
-      html += '<div class="flex items-center gap-3">';
-      html +=
-        '<div class="w-10 h-10 rounded-2xl bg-slate-900 flex items-center justify-center text-white font-black text-sm">Aa</div>';
-      html +=
-        '<div><div class="text-[10px] font-black text-slate-400 uppercase tracking-widest leading-none mb-1">Ratio</div>';
-      html +=
-        '<div class="text-xl font-black text-slate-800 tracking-tighter">' +
-        worst.ratio.toFixed(2) +
-        " : 1</div></div></div>";
-      html +=
-        '<span class="px-3 py-1 bg-red-50 text-red-600 text-[10px] font-black uppercase rounded-full border border-red-100">Failing</span></div>';
-
-      // Top Issues List (Replaces confusing #1 bubbles)
-      html += '<div class="space-y-2 mt-4">';
-      html +=
-        '<div class="text-[9px] font-black text-slate-700 uppercase tracking-widest mb-2">TOP CONTRAST ISSUES</div>';
-
-      for (x = 0; x < Math.min(issueCount, 3); x++) {
-        issue = data.contrastIssues[x];
-        html +=
-          '<div class="flex items-center justify-between text-[10px] bg-slate-50 p-2 rounded-xl border border-slate-100">';
-        html +=
-          '<span class="font-bold text-slate-800 truncate w-32">' +
-          issue.selector +
-          "</span>";
-        html +=
-          '<span class="font-black text-red-500">' +
-          issue.ratio.toFixed(2) +
-          "</span>";
-        html += "</div>";
+      var worst = data.contrastIssues[0];
+      html += '<div class="contrast-hero">';
+      html += '<div class="contrast-ratio">' + worst.ratio.toFixed(2) + '</div>';
+      html += '<div class="contrast-unit">RATIO</div>';
+      html += '</div>';
+      html += '<div class="contrast-issues">';
+      for (var x = 0; x < Math.min(issueCount, 3); x++) {
+        var issue = data.contrastIssues[x];
+        html += '<div class="contrast-item">';
+        html += '<span class="contrast-selector">' + self.escapeHtml(issue.selector) + '</span>';
+        html += '<span class="contrast-value failing">' + issue.ratio.toFixed(2) + '</span>';
+        html += '</div>';
       }
-
-      html +=
-        '<button class="w-full mt-2 py-2 text-[10px] font-black text-brand-500 uppercase tracking-widest cursor-pointer hover:bg-slate-50 rounded-xl transition-all" id="toggle-contrast-details">See all issues</button>';
-      html += "</div>";
-
-      // Hidden Detailed List
-      html += '<div id="contrast-details-list" class="hidden pt-4 space-y-2">';
-      for (y = 0; y < data.contrastIssues.length; y++) {
-        issue = data.contrastIssues[y];
-        html +=
-          '<div class="p-3 bg-slate-50 rounded-xl border border-slate-100 flex flex-col gap-1">';
-        html += '<div class="flex items-center justify-between">';
-        html +=
-          '<span class="text-[10px] font-bold text-slate-800 truncate w-32">' +
-          issue.selector +
-          "</span>";
-        html += '<div class="flex items-center gap-1.5">';
-        html +=
-          '<span class="px-1 py-0.5 rounded text-[7px] font-black uppercase tracking-tighter ' +
-          (issue.aa
-            ? "bg-emerald-50 text-emerald-600 border border-emerald-100"
-            : "bg-red-50 text-red-600 border border-red-100") +
-          '">AA</span>';
-        html +=
-          '<span class="px-1 py-0.5 rounded text-[7px] font-black uppercase tracking-tighter ' +
-          (issue.aaa
-            ? "bg-emerald-50 text-emerald-600 border border-emerald-100"
-            : "bg-slate-100 text-slate-400 border border-slate-200") +
-          '">AAA</span>';
-        html +=
-          '<span class="ml-1 text-[10px] font-black ' +
-          (issue.ratio < 3 ? "text-red-500" : "text-amber-500") +
-          '">' +
-          issue.ratio.toFixed(2) +
-          "</span>";
-        html += "</div>";
-        html += "</div>";
-        html += '<div class="flex items-center gap-2">';
-        html +=
-          '<div class="w-3 h-3 rounded-sm border border-slate-200" style="background-color:' +
-          issue.fg +
-          '"></div>';
-        html +=
-          '<span class="text-[8px] font-mono text-slate-400">' +
-          issue.fg +
-          "</span>";
-        html += '<span class="text-[8px] text-slate-300">on</span>';
-        html +=
-          '<div class="w-3 h-3 rounded-sm border border-slate-200" style="background-color:' +
-          issue.bg +
-          '"></div>';
-        html +=
-          '<span class="text-[8px] font-mono text-slate-400">' +
-          issue.bg +
-          "</span>";
-        html += "</div></div>";
+      html += '<button class="link-btn" id="toggle-contrast-details">SEE ALL →</button>';
+      html += '</div>';
+      html += '<div id="contrast-details-list" class="contrast-details hidden">';
+      for (var y = 0; y < data.contrastIssues.length; y++) {
+        var issue = data.contrastIssues[y];
+        html += '<div class="contrast-detail-item">';
+        html += '<div class="contrast-detail-row">';
+        html += '<span class="contrast-detail-selector">' + self.escapeHtml(issue.selector) + '</span>';
+        html += '<div class="contrast-badges">';
+        html += '<span class="badge ' + (issue.aa ? "pass" : "fail") + '">AA</span>';
+        html += '<span class="badge ' + (issue.aaa ? "pass" : "fail") + '">AAA</span>';
+        html += '<span class="contrast-ratio-badge">' + issue.ratio.toFixed(2) + '</span>';
+        html += '</div>';
+        html += '</div>';
+        html += '<div class="contrast-colors">';
+        html += '<div class="contrast-color-preview" style="background-color:' + issue.fg + '"></div>';
+        html += '<span class="contrast-color-code">' + issue.fg + '</span>';
+        html += '<span class="contrast-on">on</span>';
+        html += '<div class="contrast-color-preview" style="background-color:' + issue.bg + '"></div>';
+        html += '<span class="contrast-color-code">' + issue.bg + '</span>';
+        html += '</div>';
+        html += '</div>';
       }
-      html += "</div></div>";
+      html += '</div>';
     } else {
-      html +=
-        '<div class="p-6 bg-emerald-50 border border-emerald-100 rounded-[28px] text-center">';
-      html +=
-        '<div class="text-emerald-600 font-black text-xs uppercase tracking-widest mb-1">Production Ready</div>';
-      html +=
-        '<div class="text-[10px] text-emerald-600/60 font-medium">All elements pass WCAG AA contrast standards.</div></div>';
+      html += '<div class="contrast-pass">';
+      html += '<div class="contrast-pass-icon">✓</div>';
+      html += '<div class="contrast-pass-text">ALL PASSING</div>';
+      html += '</div>';
     }
-    html += "</div>";
+    html += '</div>';
 
-     // 6. CSS Information Grid
-     html += '<div class="mt-8">';
-     html +=
-       '<h4 class="text-[11px] font-black text-slate-700 uppercase tracking-widest mb-4">CSS Metrics</h4>';
-     html += '<div class="grid grid-cols-2 gap-3 pb-8">';
+    // CSS Metrics
+    var stats = [
+      { label: "STYLESHEETS", value: data.stylesheets || 0 },
+      { label: "CSS RULES", value: data.rules || 0 },
+      { label: "CSS SIZE", value: formatBytes(data.size || 0) },
+      { label: "LOAD TIME", value: (data.loadTime || 0) + "ms" },
+    ];
 
-     var stats = [
-       {
-         label: "Stylesheets",
-         value: data.stylesheets || 0,
-         icon: "M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8l-6-6z",
-       },
-       {
-         label: "CSS Rules",
-         value: data.rules || 0,
-         icon: "M4 6h16M4 10h16M4 14h16M4 18h16",
-       },
-       {
-         label: "CSS Size",
-         value: formatBytes(data.size || 0),
-         icon: "M3 15a4 4 0 004 4h9a5 5 0 10-.1-9.999 5.002 5.002 0 10-9.78 2.096A4.001 4.001 0 003 15z",
-       },
-       {
-         label: "Load Time",
-         value: (data.loadTime || 0) + "ms",
-         icon: "M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z",
-       },
-     ];
-
-    for (n = 0; n < stats.length; n++) {
-      html +=
-        '<div class="p-4 bg-white border border-slate-200 rounded-2xl shadow-sm hover:border-brand-300 transition-all group">';
-      html +=
-        '<div class="flex items-center gap-2 mb-2"><svg class="w-3.5 h-3.5 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="' +
-        stats[n].icon +
-        '"></path></svg>';
-      html +=
-        '<span class="text-[9px] font-black text-slate-700 uppercase tracking-widest">' +
-        stats[n].label.toUpperCase() +
-        "</span></div>";
-      html +=
-        '<span class="text-lg font-black text-slate-900 tracking-tighter">' +
-        stats[n].value +
-        "</span></div>";
+    html += '<div class="stat-section">';
+    html += '<div class="section-label">CSS METRICS</div>';
+    html += '<div class="metrics-grid">';
+    for (var n = 0; n < stats.length; n++) {
+      html += '<div class="metric-item">';
+      html += '<div class="metric-value">' + stats[n].value + '</div>';
+      html += '<div class="metric-label">' + stats[n].label + '</div>';
+      html += '</div>';
     }
-    html += "</div></div>";
-    html += "</div>";
+    html += '</div>';
+    html += '</div>';
+
+    // OG Preview (if available)
+    var hasOgData = data.meta && data.meta.og && (data.meta.og.title || data.meta.og.description || data.meta.og.image);
+    if (hasOgData) {
+      var previewCards = self.getOgPreviewCards(data);
+      html += '<div class="stat-section">';
+      html += '<div class="section-label">OG PREVIEW</div>';
+      if (previewCards.length > 0) {
+        html += '<div class="og-preview-trigger" id="og-preview-trigger">';
+        html += '<div class="og-preview-card">';
+        html += '<div class="og-size">' + previewCards[0].size + '</div>';
+        html += '<div class="og-platforms">' + self.getPreviewPlatformNames(previewCards[0].platforms) + '</div>';
+        html += '</div>';
+        html += '<div class="og-hint">CLICK TO PREVIEW</div>';
+        html += '</div>';
+      }
+      html += '</div>';
+    }
+
+    html += '</div>';
 
     container.innerHTML = html;
 
-    // Attach "Coming Soon" for Upgrade button
-    var upgradeBtn = container.querySelector(".bg-pink-50");
-    if (upgradeBtn) {
-      upgradeBtn.onclick = function () {
-        if (typeof CodePeekApp !== "undefined") {
-          CodePeekApp.showNotification(
-            "Upgrade Coming Soon",
-            "This feature is currently in development.",
-          );
-        } else {
-          alert("Upgrade feature coming soon!");
+    // OG Preview Modal trigger
+    var ogTrigger = document.getElementById("og-preview-trigger");
+    if (ogTrigger) {
+      ogTrigger.onclick = function () {
+        if (typeof ogPreviewModal !== "undefined" && ogPreviewModal.open) {
+          ogPreviewModal.open(data);
         }
       };
     }
 
-    // Bind events
+    // Contrast details toggle
+    var contrastToggle = document.getElementById("toggle-contrast-details");
+    var contrastDetails = document.getElementById("contrast-details-list");
+    if (contrastToggle && contrastDetails) {
+      contrastToggle.onclick = function () {
+        contrastDetails.classList.toggle("hidden");
+        this.textContent = contrastDetails.classList.contains("hidden") ? "SEE ALL →" : "HIDE ↑";
+      };
+    }
+
+    // Show all colors
     var showColorsBtn = document.getElementById("overview-show-colors");
     if (showColorsBtn && typeof CodePeekApp !== "undefined") {
       showColorsBtn.onclick = function () {
         CodePeekApp.switchTab("colors");
       };
     }
-
-    var contrastToggle = document.getElementById("toggle-contrast-details");
-    if (contrastToggle) {
-      contrastToggle.onclick = function () {
-        var details = document.getElementById("contrast-details-list");
-        var isHidden;
-        if (details) {
-          isHidden = details.classList.toggle("hidden");
-          contrastToggle.innerText = isHidden ? "See Details" : "Hide Details";
-        }
-      };
-    }
   },
 
   renderError: function (msg) {
     var container = document.getElementById("tab-overview");
-    var errorMsg;
     if (container) {
-      errorMsg = msg ? '<div class="text-sm text-slate-500 mb-4">' + this.escapeHtml(msg) + '</div>' : '';
+      var errorMsg = msg ? '<div class="error-message">' + this.escapeHtml(msg) + '</div>' : '';
       container.innerHTML =
-        '<div class="flex flex-col items-center justify-center py-20 text-slate-600">' +
-        '<div class="text-xl font-black mb-4">Failed to load data</div>' +
+        '<div class="error-state">' +
+        '<div class="error-title">FAILED TO LOAD</div>' +
         errorMsg +
-        '<button id="retry-load" class="px-6 py-2 rounded-xl bg-brand-500 text-white font-bold hover:bg-brand-600 transition-colors shadow-sm active:scale-95">Retry</button>' +
-        '</div>';
+        '<button class="retry-btn" id="retry-load">RETRY</button>' +
+        "</div>";
     }
     var retryBtn = document.getElementById("retry-load");
     if (retryBtn) {
-      retryBtn.onclick = function() {
+      retryBtn.onclick = function () {
         if (typeof CodePeekApp !== "undefined" && CodePeekApp.refreshData) {
           CodePeekApp.refreshData();
         }
@@ -420,140 +232,47 @@ var overviewTab = {
 
     return [
       {
-        size: "1200x630px",
+        size: "1200×630",
         ratioClass: "aspect-[1.91/1]",
         platforms: [
           { name: "Facebook", accent: "bg-[#1877F2] text-white", badge: "f" },
           { name: "Discord", accent: "bg-[#5865F2] text-white", badge: "D" },
           { name: "Slack", accent: "bg-[#4A154B] text-white", badge: "S" },
           { name: "WhatsApp", accent: "bg-[#25D366] text-white", badge: "W" },
-          { name: "Pinterest", accent: "bg-[#E60023] text-white", badge: "P" }
+          { name: "Pinterest", accent: "bg-[#E60023] text-white", badge: "P" },
         ],
         title: og.title || fallbackTitle,
         description: og.description || fallbackDescription,
         image: og.image || fallbackImage,
-        url: og.url || fallbackUrl
+        url: og.url || fallbackUrl,
       },
       {
-        size: "1200x627px",
+        size: "1200×627",
         ratioClass: "aspect-[1.91/1]",
-        platforms: [
-          { name: "LinkedIn", accent: "bg-[#0A66C2] text-white", badge: "in" }
-        ],
+        platforms: [{ name: "LinkedIn", accent: "bg-[#0A66C2] text-white", badge: "in" }],
         title: og.title || twitter.title || fallbackTitle,
         description: og.description || twitter.description || fallbackDescription,
         image: og.image || twitter.image || fallbackImage,
-        url: og.url || meta.canonical || fallbackUrl
+        url: og.url || meta.canonical || fallbackUrl,
       },
       {
-        size: "1200x628px",
-        ratioClass: "aspect-[1.91/1]",
-        platforms: [
-          { name: "Twitter/X", accent: "bg-slate-900 text-white", badge: "X" }
-        ],
+        size: "1200×600",
+        ratioClass: "aspect-[2/1]",
+        platforms: [{ name: "Twitter/X", badge: "X" }],
         title: twitter.title || og.title || fallbackTitle,
         description: twitter.description || og.description || fallbackDescription,
         image: twitter.image || og.image || fallbackImage,
-        url: meta.canonical || og.url || fallbackUrl
+        url: meta.canonical || og.url || fallbackUrl,
       },
-      {
-        size: "1200x600px",
-        ratioClass: "aspect-[2/1]",
-        platforms: [
-          { name: "Threads", accent: "bg-slate-900 text-white", badge: "@" },
-          { name: "Bluesky", accent: "bg-[#0285FF] text-white", badge: "B" }
-        ],
-        title: og.title || twitter.title || fallbackTitle,
-        description: og.description || twitter.description || fallbackDescription,
-        image: og.image || twitter.image || fallbackImage,
-        url: og.url || meta.canonical || fallbackUrl
-      }
     ];
-  },
-
-  renderPreviewCard: function (card, data) {
-    var favicon = data && data.meta ? data.meta.favicon : "";
-    var imageHtml = this.renderPreviewImage(card);
-    var displayUrl = this.getDisplayDomain(card.url || (data && data.meta ? data.meta.url : "") || data.host || "");
-    var platformNames = this.getPreviewPlatformNames(card.platforms);
-    var platformIcons = this.renderPreviewPlatformIcons(card.platforms);
-    var html = '';
-
-    html += '<div class="bg-white border border-slate-200 rounded-2xl overflow-hidden shadow-sm">';
-    html += '<div class="flex items-center justify-between gap-3 px-4 py-3 border-b border-slate-100 bg-slate-50/70">';
-    html += '<div class="flex items-start gap-3 min-w-0">';
-    html += '<div class="flex -space-x-1 flex-shrink-0">' + platformIcons + '</div>';
-    html += '<div class="min-w-0">';
-    html += '<div class="text-[11px] font-black text-slate-900 uppercase tracking-widest truncate">' + this.escapeHtml(card.size) + '</div>';
-    html += '<div class="text-[10px] text-slate-500 truncate">' + this.escapeHtml(platformNames) + '</div>';
-    html += '</div></div>';
-    html += '<span class="px-2 py-1 rounded-full bg-slate-100 text-slate-500 text-[9px] font-black uppercase tracking-widest">' + (card.platforms ? card.platforms.length : 0) + ' platform' + ((card.platforms && card.platforms.length > 1) ? 's' : '') + '</span>';
-    html += '</div>';
-    html += imageHtml;
-    html += '<div class="p-4">';
-    html += '<div class="flex flex-wrap items-center gap-2 mb-3">' + platformIcons + '</div>';
-    html += '<h5 class="text-sm font-bold text-slate-900 leading-snug mb-2 line-clamp-2">' + this.escapeHtml(card.title || "Untitled page") + '</h5>';
-    html += '<p class="text-[11px] text-slate-600 leading-relaxed line-clamp-3 min-h-[3.75rem] mb-3">' + this.escapeHtml(card.description || "No description available") + '</p>';
-    html += '<div class="flex items-center gap-2 text-[10px] font-mono text-slate-500 min-w-0">';
-    if (favicon) {
-      html += '<img src="' + this.escapeHtml(favicon) + '" class="w-4 h-4 rounded-sm flex-shrink-0" alt="">';
-    } else {
-      html += '<span class="w-4 h-4 rounded-sm bg-slate-200 flex-shrink-0"></span>';
-    }
-    html += '<span class="truncate">' + this.escapeHtml(displayUrl || data.host || "Unknown domain") + '</span>';
-    html += '</div></div></div>';
-
-    return html;
-  },
-
-  renderPreviewImage: function (card) {
-    var html = '';
-    html += '<div class="' + card.ratioClass + ' w-full bg-slate-100 overflow-hidden relative border-b border-slate-100">';
-    if (card.image) {
-      html += '<img src="' + this.escapeHtml(card.image) + '" class="w-full h-full object-cover" alt="' + this.escapeHtml(card.size || "OG") + ' preview image">';
-    } else {
-      html += '<div class="w-full h-full flex flex-col items-center justify-center gap-2 bg-gradient-to-br from-slate-100 via-slate-50 to-white text-slate-400">';
-      html += '<div class="w-12 h-12 rounded-2xl border border-slate-200 bg-white flex items-center justify-center text-lg font-black">+</div>';
-      html += '<div class="text-[10px] font-black uppercase tracking-widest text-slate-500">No image set</div>';
-      html += '</div>';
-    }
-    html += '</div>';
-    return html;
-  },
-
-  renderPreviewPlatformIcons: function (platforms) {
-    var html = '';
-    var i;
-    var platform;
-    if (!platforms || !platforms.length) return html;
-    for (i = 0; i < platforms.length; i++) {
-      platform = platforms[i];
-      html += '<span class="inline-flex items-center justify-center min-w-[30px] h-[30px] px-2 rounded-lg text-[11px] font-black uppercase tracking-tight border border-white/80 shadow-sm ' + this.escapeHtml(platform.accent || 'bg-slate-100 text-slate-700') + '" title="' + this.escapeHtml(platform.name || '') + '">' + this.escapeHtml(platform.badge || '?') + '</span>';
-    }
-    return html;
   },
 
   getPreviewPlatformNames: function (platforms) {
     var names = [];
-    var i;
-    if (!platforms || !platforms.length) return '';
-    for (i = 0; i < platforms.length; i++) {
-      names.push(platforms[i].name || 'Unknown');
+    if (!platforms || !platforms.length) return "";
+    for (var i = 0; i < platforms.length; i++) {
+      names.push(platforms[i].name || "Unknown");
     }
-    return names.join(', ');
-  },
-
-  getDisplayDomain: function (url) {
-    var match;
-    if (!url) return "";
-    match = String(url).match(/^[a-z]+:\/\/([^\/]+)/i);
-    if (match && match[1]) return match[1];
-    return String(url).replace(/^https?:\/\//i, "");
-  },
-
-  showSuccess: function (msg) {
-    if (typeof CodePeekApp !== "undefined" && CodePeekApp.showSuccess) {
-      CodePeekApp.showSuccess(msg);
-    }
+    return names.join(", ");
   },
 };

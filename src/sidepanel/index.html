@@ -4,172 +4,149 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Code Peek</title>
+  <!-- Nothing Design System Fonts -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@300;400;500;700&family=Space+Mono:wght@400;700&display=swap" rel="stylesheet">
   <link href="styles/generated.css" rel="stylesheet">
   <link href="styles/main.css" rel="stylesheet">
-  <style>
-  :root {
-  --font-mono: 'JetBrains Mono', 'Consolas', 'Monaco', 'Courier New', monospace;
-  --font-sans: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-  }
-  body { 
-  font-family: var(--font-sans);
-  background-color: var(--neu-bg);
-  }
-  .font-mono { font-family: var(--font-mono); }
-  </style>
 </head>
-<body class="bg-primary text-primary min-h-screen overflow-x-hidden">
-  <div id="app" class="flex flex-col h-full" role="application" aria-label="Code Peek CSS Inspector">
+<body>
+  <div id="app" class="flex flex-col" style="min-height: 100vh;" role="application" aria-label="Code Peek CSS Inspector">
 
-<!-- Header - Neumorphic Design -->
-  <header class="h-[72px] flex items-center justify-between px-5 sticky top-0 z-40" role="banner" style="background-color: var(--bg-secondary); box-shadow: var(--neu-elevation-2);">
-  <div class="flex items-center gap-4">
-  <!-- Logo with neumorphic glow -->
-  <div class="flex items-center gap-2 neu-card" style="padding: 8px 16px; box-shadow: var(--neu-elevation-1);">
-  <span class="text-[14px] font-black text-transparent bg-clip-text" style="background-image: linear-gradient(135deg, var(--brand-500), var(--brand-600));">Code Peek</span>
-  <div class="w-2 h-2 rounded-full bg-brand-500 neu-glow"></div>
-  </div>
-
-  <!-- DESIGN/DEV Mode Toggle - Neumorphic Pill -->
-  <div id="mode-toggle-wrapper" class="neu-nav-pill" style="box-shadow: var(--neu-shadow-inset);">
-  <div id="mode-option-design" class="neu-nav-pill-item active" data-mode="designer">
-  <span class="text-[10px] font-bold uppercase tracking-wider">Design</span>
-  </div>
-  <div id="mode-option-dev" class="neu-nav-pill-item" data-mode="developer">
-  <span class="text-[10px] font-bold uppercase tracking-wider">Dev</span>
-  </div>
-  </div>
-  </div>
-
-  <div class="flex items-center gap-3">
-  <!-- Inspect Button - Neumorphic -->
-  <button
-  id="inspect-toggle"
-  class="neu-btn neu-btn-icon"
-  type="button"
-  title="Toggle Inspect Mode (Alt+I)"
-  style="width: 44px; height: 44px;"
-  >
-  <div class="inspect-indicator w-3 h-3 rounded-full bg-slate-400 transition-all"></div>
-  </button>
-
-  <!-- Menu Button - Neumorphic -->
-  <div class="relative">
-  <button id="menu-toggle" type="button" class="neu-btn neu-btn-icon" style="width: 44px; height: 44px;">
-  <svg class="w-5 h-5 text-slate-500" fill="currentColor" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 8c1.1 0 2-.9 2-2s-.9-2-2-2-2 .9-2 2 .9 2 2 2zm0 2c-1.1 0-2 .9-2 2s.9 2 2 2 2-.9 2-2-.9-2-2-2zm0 6c-1.1 0-2 .9-2 2s.9 2 2 2 2-.9 2-2-.9-2-2-2z"/></svg>
-  </button>
-
-  <!-- Hidden Menu - Neumorphic -->
-  <div id="utility-menu" class="hidden absolute right-0 top-full mt-3 w-56 neu-card neu-card-elevated" style="padding: 8px;">
-  <div class="neu-card-inset" style="padding: 8px; margin-bottom: 8px;">
-  <button id="dark-mode-toggle" type="button" class="w-full flex items-center justify-between px-3 py-2 text-xs font-bold text-slate-600 hover:text-slate-800 transition-colors text-left uppercase tracking-wider rounded-lg">
-  <span>Dark Mode</span>
-  <div class="neu-switch-track" id="dark-mode-track" style="width: 44px; height: 24px;">
-  <div class="neu-switch-thumb" id="dark-mode-thumb" style="width: 20px; height: 20px; top: 2px; left: 2px;"></div>
-  </div>
-  </button>
-  </div>
-  
-  <button type="button" class="w-full px-4 py-3 text-xs font-bold text-slate-600 hover:text-slate-800 transition-colors text-left uppercase tracking-wider rounded-lg neu-btn mb-2" id="reload-extension-btn" style="padding: 10px 16px; font-size: 11px;">Reload Extension</button>
-  <button type="button" class="w-full px-4 py-3 text-xs font-bold text-slate-600 hover:text-slate-800 transition-colors text-left uppercase tracking-wider rounded-lg neu-btn mb-2" id="screenshot-btn" style="padding: 10px 16px; font-size: 11px;">Full Screenshot</button>
-  <button type="button" class="w-full px-4 py-3 text-xs font-bold text-slate-600 hover:text-slate-800 transition-colors text-left uppercase tracking-wider rounded-lg neu-btn" id="export-all-btn" style="padding: 10px 16px; font-size: 11px;">Export Config</button>
-  </div>
-  </div>
-
-  <!-- Close Button - Neumorphic -->
-  <button id="close-sidepanel" type="button" class="neu-btn neu-btn-icon" style="width: 44px; height: 44px;">
-  <svg class="w-5 h-5 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
-  </button>
-  </div>
-  </header>
-
-    <main class="flex-1 overflow-y-auto pb-[80px] scroll-smooth" role="main">
-<!-- Overview Tab -->
-  <div id="tab-overview" class="tab-content p-4" role="tabpanel">
-  <div class="space-y-4">
-  <!-- Stats Cards - Neumorphic -->
-  <div class="grid grid-cols-2 gap-4">
-  <div class="neu-card" style="padding: 20px;">
-  <div class="neu-section-title" style="margin-bottom: 8px;">Stylesheets</div>
-  <div id="css-stats-files" class="text-2xl font-black" style="color: var(--text-primary);">-</div>
-  </div>
-  <div class="neu-card" style="padding: 20px;">
-  <div class="neu-section-title" style="margin-bottom: 8px;">Load Time</div>
-  <div id="css-stats-loadtime" class="text-2xl font-black" style="color: var(--text-primary);">-</div>
-  </div>
-  </div>
-
-  <!-- Stylesheets Section - Neumorphic -->
-  <section class="neu-card-inset" style="padding: 20px; border-radius: var(--neu-radius);">
-  <div class="neu-section-header" style="margin-bottom: 16px;">
-  <div class="neu-section-dot"></div>
-  <div class="neu-section-title">Stylesheets</div>
-  </div>
-  <div id="stylesheets-list" class="space-y-2">
-  <div class="flex items-center justify-center py-6 text-xs" style="color: var(--text-muted);">Loading files...</div>
-  </div>
-  </section>
-
-  <!-- Contrast Report Section - Neumorphic -->
-  <section class="neu-card-inset" style="padding: 20px; border-radius: var(--neu-radius);">
-  <div class="neu-section-header" style="margin-bottom: 16px;">
-  <div class="neu-section-dot" style="background-color: #8b5cf6; box-shadow: 0 0 8px rgba(139, 92, 246, 0.6);"></div>
-  <div class="neu-section-title">Contrast Report</div>
-  </div>
-  <div id="contrast-report" class="space-y-3">
-  <div class="flex items-center justify-center py-6 text-xs text-center" style="color: var(--text-muted);">Analyzing contrast...</div>
-  </div>
-  </section>
-  </div>
-  </div>
-
-      <!-- Colors Tab -->
-      <div id="tab-colors" class="tab-content hidden p-4" role="tabpanel">
+    <!-- Header — Nothing Design -->
+    <header class="flex items-center justify-between" style="padding: var(--space-md); border-bottom: 1px solid var(--border); background-color: var(--black);" role="banner">
+      <!-- Logo — Pure Typography -->
+      <div class="flex items-center gap-md">
+        <h1 class="text-display-md" style="font-weight: 700; letter-spacing: -0.03em; color: var(--text-display);">CODE PEEK</h1>
       </div>
 
+      <!-- Mode Toggle — Segmented Control -->
+      <div class="segmented-control" role="tablist" aria-label="Mode selection">
+        <button class="segment active" id="mode-option-design" data-mode="designer" role="tab" aria-selected="true" aria-controls="tab-content">
+          DESIGN
+        </button>
+        <button class="segment" id="mode-option-dev" data-mode="developer" role="tab" aria-selected="false" aria-controls="tab-content">
+          DEV
+        </button>
+      </div>
+
+      <!-- Header Actions -->
+      <div class="flex items-center gap-sm">
+        <!-- Inspect Toggle -->
+        <button id="inspect-toggle" class="btn-icon" type="button" title="Toggle Inspect Mode" aria-label="Toggle inspect mode" aria-pressed="false">
+          <svg width="20" height="20" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="1.5">
+            <circle cx="12" cy="12" r="3"/>
+            <path d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"/>
+          </svg>
+        </button>
+
+        <!-- Menu Toggle -->
+        <button id="menu-toggle" class="btn-icon" type="button" title="Menu" aria-label="Open menu" aria-haspopup="true">
+          <svg width="20" height="20" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="1.5">
+            <circle cx="12" cy="6" r="1.5"/>
+            <circle cx="12" cy="12" r="1.5"/>
+            <circle cx="12" cy="18" r="1.5"/>
+          </svg>
+        </button>
+
+        <!-- Close -->
+        <button id="close-sidepanel" class="btn-icon" type="button" title="Close" aria-label="Close panel">
+          <svg width="20" height="20" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="1.5">
+            <path d="M6 18L18 6M6 6l12 12"/>
+          </svg>
+        </button>
+      </div>
+    </header>
+
+    <!-- Utility Menu (Hidden) -->
+    <div id="utility-menu" class="hidden" style="position: absolute; right: var(--space-md); top: 60px; z-index: 50; background-color: var(--surface); border: 1px solid var(--border-visible); border-radius: var(--radius-lg); padding: var(--space-sm); min-width: 200px;">
+      <!-- Dark Mode Toggle -->
+      <div class="flex items-center justify-between" style="padding: var(--space-sm) var(--space-md);">
+        <span class="text-label">Dark Mode</span>
+        <div class="toggle-track active" id="dark-mode-track" role="switch" aria-checked="true" aria-label="Dark mode" tabindex="0">
+          <div class="toggle-thumb" id="dark-mode-thumb"></div>
+        </div>
+      </div>
+      
+      <div style="height: 1px; background-color: var(--border); margin: var(--space-xs) 0;"></div>
+      
+      <!-- Menu Items -->
+      <button id="screenshot-btn" type="button" class="btn-ghost" style="width: 100%; justify-content: flex-start; text-align: left;">
+        SCREENSHOT
+      </button>
+      <button id="reload-extension-btn" type="button" class="btn-ghost" style="width: 100%; justify-content: flex-start; text-align: left;">
+        RELOAD
+      </button>
+      <button id="export-all-btn" type="button" class="btn-ghost" style="width: 100%; justify-content: flex-start; text-align: left;">
+        EXPORT
+      </button>
+    </div>
+
+    <!-- Main Content -->
+    <main class="flex-1" style="overflow-y: auto; padding-bottom: 60px;" role="main">
+      <!-- Overview Tab -->
+      <div id="tab-overview" class="tab-content" role="tabpanel" aria-labelledby="tab-overview-btn">
+        <div class="space-y-lg">
+          <!-- Loading State -->
+          <div id="overview-loading" class="flex items-center gap-sm" style="padding: var(--space-xl);">
+            <span class="loading-text loading-bracket">LOADING</span>
+          </div>
+          <!-- Content injected by JS -->
+        </div>
+      </div>
+
+      <!-- Colors Tab -->
+      <div id="tab-colors" class="tab-content hidden" role="tabpanel" aria-labelledby="tab-colors-btn"></div>
+
       <!-- Typography Tab -->
-      <div id="tab-typography" class="tab-content hidden p-4" role="tabpanel">
-        <div id="typography-content" class="space-y-4"></div>
+      <div id="tab-typography" class="tab-content hidden" role="tabpanel" aria-labelledby="tab-typography-btn">
+        <div id="typography-content" class="space-y-lg"></div>
       </div>
 
       <!-- Assets Tab -->
-      <div id="tab-assets" class="tab-content hidden p-4" role="tabpanel">
+      <div id="tab-assets" class="tab-content hidden" role="tabpanel" aria-labelledby="tab-assets-btn">
         <div id="assets-content"></div>
       </div>
 
       <!-- Rulers Tab -->
-      <div id="tab-rulers" class="tab-content hidden p-4" role="tabpanel">
-        <div id="rulers-content" class="space-y-6"></div>
+      <div id="tab-rulers" class="tab-content hidden" role="tabpanel" aria-labelledby="tab-rulers-btn">
+        <div id="rulers-content" class="space-y-xl"></div>
       </div>
 
       <!-- Inspect Tab -->
-      <div id="tab-inspect" class="tab-content hidden p-4" role="tabpanel">
+      <div id="tab-inspect" class="tab-content hidden" role="tabpanel" aria-labelledby="tab-inspect-btn">
         <div id="inspect-content"></div>
       </div>
 
       <!-- Tech Stack Tab (Developer) -->
-      <div id="tab-tech-stack" class="tab-content hidden p-4" role="tabpanel">
-        <div id="tech-stack-content" class="space-y-4"></div>
+      <div id="tab-tech-stack" class="tab-content hidden" role="tabpanel" aria-labelledby="tab-tech-stack-btn">
+        <div id="tech-stack-content" class="space-y-lg"></div>
       </div>
 
       <!-- Code Snippets Tab (Developer) -->
-      <div id="tab-code-snippets" class="tab-content hidden p-4" role="tabpanel">
-        <div id="code-snippets-content" class="space-y-4"></div>
+      <div id="tab-code-snippets" class="tab-content hidden" role="tabpanel" aria-labelledby="tab-code-snippets-btn">
+        <div id="code-snippets-content" class="space-y-lg"></div>
       </div>
 
       <!-- Audit Tab (Developer) -->
-      <div id="tab-audit" class="tab-content hidden p-4" role="tabpanel">
-        <div id="audit-content" class="space-y-4"></div>
+      <div id="tab-audit" class="tab-content hidden" role="tabpanel" aria-labelledby="tab-audit-btn">
+        <div id="audit-content" class="space-y-lg"></div>
       </div>
     </main>
 
-<!-- Bottom Navigation - Neumorphic -->
-  <nav class="h-[74px] flex items-center justify-around px-3 fixed bottom-0 left-0 right-0 z-40 transition-colors" id="bottom-nav" style="background-color: var(--bg-secondary); box-shadow: var(--neu-elevation-2);">
-  <div id="tab-bar" class="flex items-center justify-around w-full"></div>
-  </nav>
+    <!-- Bottom Navigation — Nothing Design -->
+    <nav class="nav-bar" id="bottom-nav" style="position: fixed; bottom: 0; left: 0; right: 0; z-index: 40;" role="navigation" aria-label="Main navigation">
+      <div id="tab-bar" class="flex items-center justify-around w-full"></div>
+    </nav>
 
-<script src="culori.min.js"></script>
-  <script src="utils/messaging.js?v=2"></script>
-  <script src="app.js?v=2"></script>
-</body>
+    <!-- Scripts -->
+    <script src="culori.min.js"></script>
+    <script src="utils/messaging.js?v=2"></script>
+    <script src="utils/og-preview-data.js?v=2"></script>
+    <script src="components/modal-component.js?v=2"></script>
+    <script src="components/og-preview-modal.js?v=2"></script>
+    <script src="components/brand-guide-modal.js?v=2"></script>
+    <script src="app.js?v=2"></script>
+  </body>
 </html>

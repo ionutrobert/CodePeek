@@ -1,4 +1,4 @@
-// Sidepanel App - Premium Lavender Design System (ES5)
+// Sidepanel App - Nothing Design System (ES5)
 var DEBUG = false;
 
 // Find the web content tab in the current window (exclude extension pages)
@@ -354,63 +354,57 @@ var CodePeekApp = {
     this.saveSettings();
   },
 
-// Render bottom tab bar based on current mode - Neumorphic design
+  // Render bottom tab bar — Nothing design
   renderTabBar: function () {
-  var container = document.getElementById("tab-bar");
-  if (!container) return;
-  container.innerHTML = ""; // Clear existing
+    var container = document.getElementById("tab-bar");
+    if (!container) return;
+    container.innerHTML = "";
 
-  var tabs = this.tabsByMode[this.mode] || [];
-  var self = this;
+    var tabs = this.tabsByMode[this.mode] || [];
+    var self = this;
 
-  // Create neu-nav wrapper
-  var navWrapper = document.createElement("div");
-  navWrapper.className = "flex items-center justify-around w-full gap-2";
+    tabs.forEach(function(tabId) {
+      var btn = document.createElement("button");
+      btn.className = "nav-item";
+      btn.setAttribute("data-tab", tabId);
+      btn.setAttribute("role", "tab");
+      btn.setAttribute("type", "button");
 
-  tabs.forEach(function(tabId) {
-  var btn = document.createElement("button");
-  btn.className = "neu-nav-item flex-1";
-  btn.setAttribute("data-tab", tabId);
-  btn.setAttribute("role", "tab");
-  
-  // Icon and label based on tabId
-  var icons = {
-  overview: '<svg class="w-5 h-5 mb-1" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2V6zM14 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2V6zM4 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2v-2zM14 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2v-2z"></path></svg>',
-  colors: '<svg class="w-5 h-5 mb-1" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 21a4 4 0 01-4-4V5a2 2 0 012-2h4a2 2 0 012 2v12a4 4 0 01-4 4zm0 0h12a2 2 0 002-2v-4a2 2 0 00-2-2h-2.343M11 7.343l1.657-1.657a2 2 0 012.828 0l2.829 2.829a2 2 0 010 2.828l-8.486 8.485M7 17h.01"></path></svg>',
-  typography: '<svg class="w-5 h-5 mb-1" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path></svg>',
-  assets: '<svg class="w-5 h-5 mb-1" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z"></path></svg>',
-  inspect: '<svg class="w-5 h-5 mb-1" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"></path></svg>',
-  rulers: '<svg class="w-5 h-5 mb-1" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4"></path></svg>',
-  'tech-stack': '<svg class="w-5 h-5 mb-1" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 20l4-16m4 4l4 4-4 4M6 16l-4-4 4-4"></path></svg>',
-  'code-snippets': '<svg class="w-5 h-5 mb-1" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 20l4-16m4 4l4 4-4 4M6 16l-4-4 4-4"></path></svg>',
-  audit: '<svg class="w-5 h-5 mb-1" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z"></path></svg>'
-  };
-  var labels = {
-  overview: "Overview",
-  colors: "Colors",
-  typography: "Type",
-  assets: "Assets",
-  inspect: "Inspect",
-  rulers: "Rulers",
-  'tech-stack': "Stack",
-  'code-snippets': "Code",
-  audit: "Audit"
-  };
-  var icon = icons[tabId] || '';
-  var label = labels[tabId] || tabId;
-  
-  // Active state based on current tab
-  if (tabId === self.activeTab) {
-  btn.classList.add("active");
-  }
-  
-  btn.innerHTML = icon + '<div class="text-[9px] font-bold uppercase tracking-wider">' + label + '</div>';
-  btn.className += " nav-button";
-  btn.dataset.tab = tabId;
-  navWrapper.appendChild(btn);
-  });
-  
-  container.appendChild(navWrapper);
+      var labels = {
+        overview: "OVERVIEW",
+        colors: "COLORS",
+        typography: "TYPE",
+        assets: "ASSETS",
+        inspect: "INSPECT",
+        rulers: "RULERS",
+        'tech-stack': "STACK",
+        'code-snippets': "CODE",
+        audit: "AUDIT"
+      };
+
+      var icons = {
+        overview: '<svg width="20" height="20" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="1.5"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/></svg>',
+        colors: '<svg width="20" height="20" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="1.5"><circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="5" stroke-dasharray="2 2"/></svg>',
+        typography: '<svg width="20" height="20" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="1.5"><path d="M4 7V4h16v3M9 20h6M12 4v16"/></svg>',
+        assets: '<svg width="20" height="20" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="1.5"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><path d="m21 15-5-5L5 21"/></svg>',
+        inspect: '<svg width="20" height="20" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="1.5"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg>',
+        rulers: '<svg width="20" height="20" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="1.5"><path d="M21.3 15.3 8.7 2.7a2.4 2.4 0 0 0-3.4 0l-2.6 2.6a2.4 2.4 0 0 0 0 3.4l12.6 12.6a2.4 2.4 0 0 0 3.4 0l2.6-2.6a2.4 2.4 0 0 0 0-3.4Z"/><path d="m7.5 10.5 2 2M10.5 7.5l2 2"/></svg>',
+        'tech-stack': '<svg width="20" height="20" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="1.5"><path d="m16 18 6-6-6-6M8 6l-6 6 6 6"/></svg>',
+        'code-snippets': '<svg width="20" height="20" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="1.5"><path d="m16 18 6-6-6-6M8 6l-6 6 6 6"/></svg>',
+        audit: '<svg width="20" height="20" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="1.5"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/><path d="m9 12 2 2 4-4"/></svg>'
+      };
+
+      var label = labels[tabId] || tabId.toUpperCase();
+      var icon = icons[tabId] || '';
+
+      if (tabId === self.activeTab) {
+        btn.classList.add("active");
+      }
+
+      btn.innerHTML = icon + '<span class="nav-label">' + label + '</span>';
+      btn.dataset.tab = tabId;
+      container.appendChild(btn);
+    });
   },
 
 switchMode: function(newMode) {
@@ -480,43 +474,25 @@ switchMode: function(newMode) {
   },
 
 toggleInspectMode: function () {
-  var self = this;
-  this.isInspecting = !this.isInspecting;
+    var self = this;
+    this.isInspecting = !this.isInspecting;
 
-  var btn = document.getElementById("inspect-toggle");
-  var indicator = btn ? btn.querySelector("div.rounded-full") : null;
-  if (!btn) return;
+    var btn = document.getElementById("inspect-toggle");
+    if (!btn) return;
 
-  if (this.isInspecting) {
-  // INSPECT MODE ACTIVE - neumorphic active state
-  btn.classList.add("neu-btn-active");
-  btn.style.background = "linear-gradient(145deg, var(--brand-500), var(--brand-600))";
-  btn.style.color = "white";
-  if (indicator) {
-  indicator.classList.add("inspect-active");
-  indicator.classList.remove("bg-slate-400");
-  indicator.style.backgroundColor = "#ef4444";
-  indicator.style.boxShadow = "0 0 8px rgba(239, 68, 68, 0.8)";
-  }
-  messaging.sendMessage("START_INSPECT_MODE", null, function () {
-  });
-  } else {
-  // INSPECT MODE INACTIVE - back to neumorphic default
-  btn.classList.remove("neu-btn-active");
-  btn.style.background = "";
-  btn.style.color = "";
-  if (indicator) {
-  indicator.classList.remove("inspect-active");
-  indicator.style.backgroundColor = "";
-  indicator.style.boxShadow = "";
-  indicator.classList.add("bg-slate-400");
-  }
-  messaging.sendMessage("STOP_INSPECT_MODE", null);
-  }
+    if (this.isInspecting) {
+      btn.classList.add("text-accent");
+      btn.style.borderColor = "var(--accent)";
+      messaging.sendMessage("START_INSPECT_MODE", null, function () {
+      });
+    } else {
+      btn.classList.remove("text-accent");
+      btn.style.borderColor = "";
+      messaging.sendMessage("STOP_INSPECT_MODE", null);
+    }
   },
 
   setDarkMode: function (val) {
-
     var oldVal = this.isDarkMode;
     this.isDarkMode = val;
 
@@ -525,31 +501,21 @@ toggleInspectMode: function () {
     var track = document.getElementById("dark-mode-track");
 
     if (val) {
+      html.classList.remove("light-mode");
       html.classList.add("dark-mode");
-      if (thumb) thumb.style.transform = "translateX(16px)";
-      if (track) track.classList.replace("bg-slate-200", "bg-brand-500");
+      if (track) track.classList.add("active");
     } else {
       html.classList.remove("dark-mode");
-      if (thumb) thumb.style.transform = "translateX(0)";
-      if (track) track.classList.replace("bg-brand-500", "bg-slate-200");
+      html.classList.add("light-mode");
+      if (track) track.classList.remove("active");
     }
 
     if (typeof chrome !== "undefined" && chrome.storage && chrome.storage.local) {
       chrome.storage.local.set({ darkMode: val }, function() {
         if (chrome.runtime.lastError) {
           console.error("[ERROR] chrome.storage.local.set(darkMode) FAILED:", chrome.runtime.lastError.message);
-        } else {
-          // Verify
-          chrome.storage.local.get(['darkMode'], function(res) {
-            if (chrome.runtime.lastError) {
-              console.error("[ERROR] Verify get failed:", chrome.runtime.lastError.message);
-            } else {
-            }
-          });
         }
       });
-    } else {
-      console.warn("[WARN] chrome.storage.local not available for storing darkMode!");
     }
   },
 
@@ -595,64 +561,32 @@ toggleInspectMode: function () {
       self.mode = mode;
       self.colorSubtab = colorSubtab;
 
-      // Apply dark mode UI
+      // Apply dark mode UI — Nothing design system
       var html = document.documentElement;
-      var thumb = document.getElementById("dark-mode-thumb");
       var track = document.getElementById("dark-mode-track");
       if (darkMode) {
+        html.classList.remove("light-mode");
         html.classList.add("dark-mode");
-        if (thumb) thumb.style.transform = "translateX(16px)";
-        if (track) track.classList.replace("bg-slate-200", "bg-brand-500");
+        if (track) track.classList.add("active");
       } else {
         html.classList.remove("dark-mode");
-        if (thumb) thumb.style.transform = "translateX(0)";
-        if (track) track.classList.replace("bg-brand-500", "bg-slate-200");
+        html.classList.add("light-mode");
+        if (track) track.classList.remove("active");
       }
 
-      // Apply continuous inspect UI
-      var contTrack = document.getElementById("continuous-track");
-      var contThumb = document.getElementById("continuous-thumb");
-      if (contTrack && contThumb) {
-        if (continuousInspect) {
-          contTrack.classList.replace("bg-slate-200", "bg-brand-500");
-          contThumb.style.transform = "translateX(16px)";
+      // Update mode switch UI — Segmented control
+      var modeOptionDesign = document.getElementById("mode-option-design");
+      var modeOptionDev = document.getElementById("mode-option-dev");
+
+      if (modeOptionDesign && modeOptionDev) {
+        if (mode === "designer") {
+          modeOptionDesign.classList.add("active");
+          modeOptionDev.classList.remove("active");
         } else {
-          contTrack.classList.replace("bg-brand-500", "bg-slate-200");
-          contThumb.style.transform = "translateX(0)";
+          modeOptionDev.classList.add("active");
+          modeOptionDesign.classList.remove("active");
         }
       }
-
-// Update mode switch UI - Neumorphic pill toggle
-  var modeOptionDesign = document.getElementById("mode-option-design");
-  var modeOptionDev = document.getElementById("mode-option-dev");
-
-  if (modeOptionDesign && modeOptionDev) {
-  if (mode === "designer") {
-  modeOptionDesign.classList.add("active");
-  modeOptionDev.classList.remove("active");
-  } else {
-  modeOptionDev.classList.add("active");
-  modeOptionDesign.classList.remove("active");
-  }
-  }
-  
-  // Also update old switch if present (backward compatibility)
-  var modeSwitch = document.getElementById("mode-switch");
-  var modeSwitchThumb = document.getElementById("mode-switch-thumb");
-  if (modeSwitch && modeSwitchThumb) {
-  if (mode === "designer") {
-  modeSwitch.classList.remove("bg-brand-500");
-  modeSwitch.classList.add("bg-slate-200");
-  modeSwitchThumb.style.transform = "translateX(0)";
-  } else {
-  modeSwitch.classList.remove("bg-slate-200");
-  modeSwitch.classList.add("bg-brand-500");
-  modeSwitchThumb.style.transform = "translateX(22px)";
-  }
-  }
-      
-      var modeSelect = document.getElementById("mode-select");
-      if (modeSelect) modeSelect.value = mode;
 
       // Render tab bar for current mode
       self.renderTabBar();
@@ -703,11 +637,9 @@ toggleInspectMode: function () {
     var thumb = document.getElementById("continuous-thumb");
     if (track && thumb) {
       if (this.continuousInspect) {
-        track.classList.replace("bg-slate-200", "bg-brand-500");
-        thumb.style.transform = "translateX(16px)";
+        track.classList.add("active");
       } else {
-        track.classList.replace("bg-brand-500", "bg-slate-200");
-        thumb.style.transform = "translateX(0)";
+        track.classList.remove("active");
       }
     }
   },
@@ -845,21 +777,16 @@ toggleInspectMode: function () {
 
   showNotification: function (title, msg) {
     var toast = document.createElement("div");
-    toast.className = "fixed top-4 right-4 z-[100] bg-white border border-slate-200 rounded-2xl shadow-2xl p-4 min-w-[240px] animate-in slide-in-from-top-4 duration-300";
-    toast.innerHTML =
-      '<div class="flex items-start gap-3">' +
-      '<div class="p-2 bg-brand-50 text-brand-600 rounded-xl"><svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg></div>' +
-      "<div>" +
-      '<div class="text-xs font-black text-slate-900 uppercase tracking-widest mb-0.5">' + title + "</div>" +
-      '<div class="text-[11px] text-slate-500 font-medium">' + msg + "</div>" +
-      "</div></div>";
-
+    toast.className = "status-inline";
+    toast.style.cssText = "position: fixed; top: var(--space-md); right: var(--space-md); z-index: 100; padding: var(--space-sm) var(--space-md); background-color: var(--surface); border: 1px solid var(--border-visible); border-radius: var(--radius-md); font-family: var(--font-mono); font-size: var(--caption); letter-spacing: 0.04em;";
+    toast.innerHTML = '<span class="text-secondary">[' + title.toUpperCase() + ']</span> <span class="text-primary">' + msg + '</span>';
     document.body.appendChild(toast);
     setTimeout(function () {
-      toast.classList.add("animate-out", "fade-out", "slide-out-to-top-2");
+      toast.style.opacity = "0";
+      toast.style.transition = "opacity var(--duration-normal) var(--ease-out)";
       setTimeout(function () {
         toast.remove();
-      }, 300);
+      }, 250);
     }, 3000);
   },
 

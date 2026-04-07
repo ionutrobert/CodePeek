@@ -62,8 +62,14 @@ var sidepanelFiles = [
 'components/tab-tech-stack.js',
 'components/tab-code-snippets.js',
 'components/tab-audit.js',
+'components/modal-component.js',
+'components/og-preview-modal.js',
+'components/brand-guide-modal.js',
 'utils/messaging.js',
 'utils/formatters.js',
+'utils/og-preview-data.js',
+'utils/report-generator.js',
+'utils/report-template.js',
 'styles/generated.css',
 'styles/main.css'
 ];
