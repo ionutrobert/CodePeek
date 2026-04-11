@@ -1,5 +1,5 @@
 // Sidepanel App - Nothing Design System (ES5)
-var DEBUG = false;
+var DEBUG = true;
 
 // Find the web content tab in the current window (exclude extension pages)
 function findContentTab(callback) {
@@ -34,6 +34,12 @@ var CodePeekApp = {
   colorSubtab: "all", // 'all' or 'categories' for colors tab
   _toastTimer: null,
   mode: "designer", // 'designer' or 'developer'
+  panelMode: "sidebar", // 'sidebar' or 'floating'
+  floatingPosition: { top: 16, right: 16 },
+  floatingSize: { width: 400, height: 500 },
+  isDragging: false,
+  isResizing: false,
+  dragOffset: { x: 0, y: 0 },
   dataCache: {
     pageData: null,
     timestamp: 0,
@@ -44,35 +50,37 @@ var CodePeekApp = {
     developer: ["overview", "tech-stack", "code-snippets", "audit", "inspect"]
   },
 
-  init: function () {
+init: function () {
     this.bindEvents();
     this.loadSettings();
+    this.loadPanelSettings();
+    this.checkFirstTimeInspectHighlight();
 
-    // Defer initial data refresh to ensure content script injection and DOM ready
-    var self = this;
-    setTimeout(function () {
-      self.refreshData();
-    }, 1500);
+  // Minimal delay for content script injection
+  var self = this;
+  setTimeout(function () {
+    self.refreshData();
+  }, 300);
 
-    // Auto-refresh when tab changes
-    var self = this;
-    if (
-      typeof chrome !== "undefined" &&
-      chrome.tabs &&
-      chrome.tabs.onActivated
-    ) {
-      chrome.tabs.onActivated.addListener(function () {
-        setTimeout(function () {
-          self.refreshData();
-        }, 300);
-      });
-      chrome.tabs.onUpdated.addListener(function (tabId, changeInfo, tab) {
-        if (changeInfo.status === "complete") {
-          self.invalidateCache();
-          self.refreshData();
-        }
-      });
-    }
+  // Auto-refresh when tab changes
+  var self = this;
+  if (
+    typeof chrome !== "undefined" &&
+    chrome.tabs &&
+    chrome.tabs.onActivated
+  ) {
+    chrome.tabs.onActivated.addListener(function () {
+      setTimeout(function () {
+        self.refreshData();
+      }, 300);
+    });
+    chrome.tabs.onUpdated.addListener(function (tabId, changeInfo, tab) {
+      if (changeInfo.status === "complete") {
+        self.invalidateCache();
+        self.refreshData();
+      }
+    });
+  }
 
     // Verify storage after init
     setTimeout(function() {
@@ -118,13 +126,26 @@ if (btn && btn.dataset.tab) self.switchTab(btn.dataset.tab);
       };
     }
 
-    // Dark Mode Toggle
-    var darkBtn = document.getElementById("dark-mode-toggle");
-    if (darkBtn) {
-      darkBtn.onclick = function () {
-        self.setDarkMode(!self.isDarkMode);
-      };
-    }
+  // Dark Mode Toggle (both button and track in utility menu)
+  var darkBtn = document.getElementById("dark-mode-toggle");
+  var darkModeTrack = document.getElementById("dark-mode-track");
+  
+  var handleDarkModeToggle = function() {
+    self.setDarkMode(!self.isDarkMode);
+  };
+  
+  if (darkBtn) {
+    darkBtn.onclick = handleDarkModeToggle;
+  }
+  if (darkModeTrack) {
+    darkModeTrack.onclick = handleDarkModeToggle;
+    darkModeTrack.onkeydown = function(e) {
+      if (e.key === 'Enter' || e.key === ' ') {
+        e.preventDefault();
+        handleDarkModeToggle();
+      }
+    };
+  }
 
     // Continuous Inspect Toggle
     var continuousToggle = document.getElementById("continuous-inspect-toggle");
@@ -154,16 +175,24 @@ if (btn && btn.dataset.tab) self.switchTab(btn.dataset.tab);
   };
   }
   
-  // Also check for old switch button (backward compatibility)
+// Also check for old switch button (backward compatibility)
   var modeSwitchBtn = document.getElementById("mode-switch");
   if (modeSwitchBtn) {
-  modeSwitchBtn.onclick = function() {
-  var newMode = self.mode === "designer" ? "developer" : "designer";
-  self.switchMode(newMode);
-  };
+    modeSwitchBtn.onclick = function() {
+      var newMode = self.mode === "designer" ? "developer" : "designer";
+      self.switchMode(newMode);
+    };
   }
 
-    // Other UI bindings...
+  // Float toggle button
+  var floatBtn = document.getElementById("float-toggle");
+  if (floatBtn) {
+    floatBtn.onclick = function () {
+      self.togglePanelMode();
+    };
+  }
+
+  // Other UI bindings...
     var menuBtn = document.getElementById("menu-toggle");
     var menu = document.getElementById("utility-menu");
     if (menuBtn && menu) {
@@ -176,44 +205,93 @@ if (btn && btn.dataset.tab) self.switchTab(btn.dataset.tab);
       });
     }
 
-    var screenshotBtn = document.getElementById("screenshot-btn");
-    if (screenshotBtn) {
-      screenshotBtn.onclick = function () {
-        self.captureFullScreenshot();
-      };
-    }
+  var screenshotBtn = document.getElementById("screenshot-btn");
+  if (screenshotBtn) {
+    screenshotBtn.onclick = function () {
+      self.captureFullScreenshot();
+    };
+  }
 
-    var reloadBtn = document.getElementById("reload-extension-btn");
-    if (reloadBtn) {
-      reloadBtn.onclick = function () {
-        if (typeof chrome !== "undefined" && chrome.runtime && chrome.runtime.reload) {
-          chrome.runtime.reload();
+  var reloadBtn = document.getElementById("reload-extension-btn");
+  if (reloadBtn) {
+    reloadBtn.onclick = function () {
+      if (typeof chrome !== "undefined" && chrome.runtime && chrome.runtime.reload) {
+        chrome.runtime.reload();
+      } else {
+        self.showNotification("Error", "Cannot reload extension");
+      }
+    };
+  }
+
+  var shortcutsBtn = document.getElementById("shortcuts-btn");
+  if (shortcutsBtn) {
+    shortcutsBtn.onclick = function () {
+      if (typeof shortcutsModal !== "undefined" && shortcutsModal.open) {
+        shortcutsModal.open();
+        var menu = document.getElementById("utility-menu");
+        if (menu) menu.classList.add("hidden");
+      }
+    };
+  }
+
+  var showTipsBtn = document.getElementById("show-tips-btn");
+  if (showTipsBtn) {
+    showTipsBtn.onclick = function () {
+      localStorage.removeItem("codepeek_onboarding_seen");
+      self.refreshData();
+      var menu = document.getElementById("utility-menu");
+      if (menu) menu.classList.add("hidden");
+      self.showNotification("Tips", "Onboarding tips restored");
+    };
+  }
+
+  var closeBtn = document.getElementById("close-sidepanel");
+  if (closeBtn) {
+    closeBtn.onclick = function () {
+      // Reset overlays before closing, wait for message to be sent
+      findContentTab(function(tab) {
+        if (tab && tab.id) {
+          chrome.tabs.sendMessage(tab.id, { type: 'RESET_ALL_OVERLAYS' }, function() {
+            if (chrome.runtime && chrome.runtime.lastError) {
+              window.close();
+              return;
+            }
+            setTimeout(function() { window.close(); }, 50);
+          });
         } else {
-          self.showNotification("Error", "Cannot reload extension");
+          window.close();
         }
-      };
-    }
+      });
+    };
+  }
 
-    var closeBtn = document.getElementById("close-sidepanel");
-    if (closeBtn) {
-      closeBtn.onclick = function () {
-        // Reset overlays before closing, wait for message to be sent
-        findContentTab(function(tab) {
-          if (tab && tab.id) {
-            chrome.tabs.sendMessage(tab.id, { type: 'RESET_ALL_OVERLAYS' }, function() {
-              if (chrome.runtime && chrome.runtime.lastError) {
-                window.close();
-                return;
-              }
-              setTimeout(function() { window.close(); }, 50);
-            });
-          } else {
-            window.close();
-          }
-        });
-      };
+  // Keyboard shortcuts for quick tab navigation
+  document.addEventListener('keydown', function(e) {
+    // Ignore if user is typing in an input
+    if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA' || e.target.isContentEditable) {
+      return;
     }
-  },
+    
+    var key = e.key.toUpperCase();
+    var shortcuts = {
+      'C': 'colors',
+      'T': 'typography',
+      'A': 'assets',
+      'O': 'overview',
+      'I': 'inspect',
+      'R': 'rulers'
+    };
+    
+    if (shortcuts[key] && !e.ctrlKey && !e.metaKey && !e.altKey) {
+      var targetTab = shortcuts[key];
+      var availableTabs = self.tabsByMode[self.mode] || [];
+      if (availableTabs.indexOf(targetTab) !== -1) {
+        e.preventDefault();
+        self.switchTab(targetTab);
+      }
+    }
+  });
+ },
 
   refreshData: function () {
     var self = this;
@@ -331,7 +409,12 @@ else btn.classList.remove("active");
   switchColorSubtab: function (subId) {
     var all = document.getElementById("colors-subtab-all");
     var cats = document.getElementById("colors-subtab-categories");
-    if (!all || !cats) return;
+    
+    // If elements don't exist, the tab hasn't been rendered yet - that's okay
+    if (!all || !cats) {
+      this.colorSubtab = subId;
+      return;
+    }
 
     all.classList.add("hidden");
     cats.classList.add("hidden");
@@ -339,13 +422,11 @@ else btn.classList.remove("active");
     var active = document.getElementById("colors-subtab-" + subId);
     if (active) active.classList.remove("hidden");
 
-    document.querySelectorAll(".color-subtab-button").forEach(function (btn) {
+    document.querySelectorAll(".subtab-btn").forEach(function (btn) {
       if (btn.dataset.subtab === subId) {
-        btn.classList.add("bg-white", "shadow-sm", "text-brand-600");
-        btn.classList.remove("text-slate-400");
+        btn.classList.add("active");
       } else {
-        btn.classList.remove("bg-white", "shadow-sm", "text-brand-600");
-        btn.classList.add("text-slate-400");
+        btn.classList.remove("active");
       }
     });
 
@@ -621,7 +702,10 @@ toggleInspectMode: function () {
       colorSubtab: this.colorSubtab,
       mode: this.mode,
       designerActiveTab: this.mode === "designer" ? this.activeTab : (this.designerActiveTab || "overview"),
-      developerActiveTab: this.mode === "developer" ? this.activeTab : (this.developerActiveTab || "overview")
+      developerActiveTab: this.mode === "developer" ? this.activeTab : (this.developerActiveTab || "overview"),
+      panelMode: this.panelMode,
+      floatingPosition: this.floatingPosition,
+      floatingSize: this.floatingSize
     };
     if (typeof chrome !== "undefined" && chrome.storage && chrome.storage.local) {
       chrome.storage.local.set(saveData, function() {
@@ -777,13 +861,11 @@ toggleInspectMode: function () {
 
   showNotification: function (title, msg) {
     var toast = document.createElement("div");
-    toast.className = "status-inline";
-    toast.style.cssText = "position: fixed; top: var(--space-md); right: var(--space-md); z-index: 100; padding: var(--space-sm) var(--space-md); background-color: var(--surface); border: 1px solid var(--border-visible); border-radius: var(--radius-md); font-family: var(--font-mono); font-size: var(--caption); letter-spacing: 0.04em;";
+    toast.className = "toast-notification";
     toast.innerHTML = '<span class="text-secondary">[' + title.toUpperCase() + ']</span> <span class="text-primary">' + msg + '</span>';
     document.body.appendChild(toast);
     setTimeout(function () {
-      toast.style.opacity = "0";
-      toast.style.transition = "opacity var(--duration-normal) var(--ease-out)";
+      toast.classList.add("toast-hiding");
       setTimeout(function () {
         toast.remove();
       }, 250);
@@ -804,7 +886,7 @@ toggleInspectMode: function () {
     document.body.removeChild(textarea);
   },
 
-  handleMessage: function (msg, sender, sendResponse) {
+handleMessage: function (msg, sender, sendResponse) {
     if (msg && msg.type === "RULER_ADDED") {
       if (typeof rulersTab !== 'undefined') {
         rulersTab.addRuler(msg.payload);
@@ -836,6 +918,105 @@ toggleInspectMode: function () {
       if (sendResponse) sendResponse({ success: false, error: 'Unknown message type' });
     }
   },
+
+// ========== FLOATING PANEL METHODS ==========
+  togglePanelMode: function () {
+    var self = this;
+    if (DEBUG) console.log('[Code Peek] togglePanelMode called, current mode:', this.panelMode);
+
+    if (this.panelMode === 'sidebar') {
+      // Switch to floating mode
+      this.panelMode = 'floating';
+      this.saveSettings();
+
+      // Send message via chrome.runtime directly to ensure delivery
+      if (typeof chrome !== 'undefined' && chrome.runtime && chrome.runtime.sendMessage) {
+        if (DEBUG) console.log('[Code Peek] Sending CREATE_FLOATING_PANEL via chrome.runtime');
+
+        chrome.runtime.sendMessage({
+          type: 'CREATE_FLOATING_PANEL',
+          payload: {
+            position: this.floatingPosition,
+            size: this.floatingSize,
+            mode: this.mode,
+            activeTab: this.activeTab,
+            isDarkMode: this.isDarkMode
+          }
+        }, function(response) {
+          if (chrome.runtime && chrome.runtime.lastError) {
+            console.error('[Code Peek] CREATE_FLOATING_PANEL error:', chrome.runtime.lastError.message);
+            self.panelMode = 'sidebar';
+            self.showNotification('Error', 'Failed to create floating panel: ' + chrome.runtime.lastError.message);
+            return;
+          }
+          if (DEBUG) console.log('[Code Peek] CREATE_FLOATING_PANEL response:', response);
+          if (!response || !response.success) {
+            console.error('[Code Peek] CREATE_FLOATING_PANEL failed:', response);
+            self.panelMode = 'sidebar';
+            self.showNotification('Error', 'Failed to create floating panel');
+            return;
+          }
+          // Close the sidebar after floating panel is created
+          setTimeout(function() {
+            if (typeof chrome !== 'undefined' && chrome.sidePanel) {
+              chrome.sidePanel.setOptions({ enabled: false });
+            }
+            window.close();
+          }, 100);
+        });
+      } else {
+        console.error('[Code Peek] chrome.runtime not available');
+        this.panelMode = 'sidebar';
+        this.showNotification('Error', 'Extension context not available');
+      }
+    }
+  },
+
+  applyPanelMode: function () {
+    // This is now handled in content script
+    // Just update UI state
+    var floatBtn = document.getElementById('float-toggle');
+    var iconSidebar = document.getElementById('float-icon-sidebar');
+    var iconFloating = document.getElementById('float-icon-floating');
+
+    if (this.panelMode === 'floating') {
+      if (floatBtn) floatBtn.setAttribute('aria-pressed', 'true');
+      if (iconSidebar) iconSidebar.classList.add('hidden');
+      if (iconFloating) iconFloating.classList.remove('hidden');
+    } else {
+      if (floatBtn) floatBtn.setAttribute('aria-pressed', 'false');
+      if (iconSidebar) iconSidebar.classList.remove('hidden');
+      if (iconFloating) iconFloating.classList.add('hidden');
+    }
+  },
+
+  loadPanelSettings: function () {
+    var self = this;
+    
+    // Check if running in floating iframe (has ?floating=true in URL)
+    var params = new URLSearchParams(window.location.search);
+    var isFloatingIframe = params.get('floating') === 'true';
+    
+    if (isFloatingIframe) {
+      // Running in iframe - set to floating mode
+      this.panelMode = 'floating';
+      this.applyPanelMode();
+      return;
+    }
+    
+    // Running in actual sidebar - always start as sidebar mode
+    // Reset any previously saved floating state
+    this.panelMode = 'sidebar';
+    this.applyPanelMode();
+    
+    // Still load position/size settings for when we go floating
+    if (typeof chrome !== 'undefined' && chrome.storage && chrome.storage.local) {
+      chrome.storage.local.get(['floatingPosition', 'floatingSize'], function (data) {
+        if (data.floatingPosition) self.floatingPosition = data.floatingPosition;
+        if (data.floatingSize) self.floatingSize = data.floatingSize;
+      });
+    }
+  }
 };
 
 // Lazy loading for tab scripts
@@ -880,6 +1061,20 @@ CodePeekApp.loadTabScript = function(tabName, callback) {
     if (callback) callback();
   };
   document.head.appendChild(script);
+};
+
+CodePeekApp.checkFirstTimeInspectHighlight = function() {
+  var hasSeenInspectHighlight = localStorage.getItem('codepeek_inspect_highlight_seen');
+  if (!hasSeenInspectHighlight) {
+    var inspectBtn = document.getElementById('inspect-toggle');
+    if (inspectBtn) {
+      inspectBtn.classList.add('btn-icon-first-time');
+      setTimeout(function() {
+        inspectBtn.classList.remove('btn-icon-first-time');
+        localStorage.setItem('codepeek_inspect_highlight_seen', 'true');
+      }, 6000);
+    }
+  }
 };
 
 window.CodePeekApp = CodePeekApp;

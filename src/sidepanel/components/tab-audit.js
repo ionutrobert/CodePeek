@@ -26,21 +26,18 @@ var auditTab = {
     var issues = data.contrastIssues || [];
     var totalAssets = (data.assets || []).length;
 
-    var html = '<div class="audit-tab">';
+    var html = '<div class="tab-content">';
 
     // Page Header
     html += '<div class="page-header">';
-    html += '<div class="section-indicator"></div>';
-    html += '<div class="header-text">';
-    html += '<h1 class="page-title">Audit</h1>';
-    html += '<p class="page-subtitle">Accessibility & Performance</p>';
-    html += '</div>';
+    html += '<div class="page-title">AUDIT</div>';
+    html += '<div class="page-subtitle">Accessibility & Performance</div>';
     html += '</div>';
 
     // Accessibility Section
-    html += '<section class="audit-section">';
+    html += '<section class="section">';
     html += this.buildCollapseHeader('audit-accessibility-content', 'Accessibility', true);
-    html += '<div id="audit-accessibility-content" class="audit-collapse-content">';
+    html += '<div id="audit-accessibility-content" class="collapse-content">';
 
     if (issues.length === 0) {
       html += '<div class="audit-pass">';
@@ -73,9 +70,9 @@ var auditTab = {
     var assetSizes = data.assets ? data.assets.filter(function(a) { return a.width && a.height; }) : [];
     var largeAssets = assetSizes.filter(function(a) { return (a.width * a.height) > 100000; });
 
-    html += '<section class="audit-section">';
+    html += '<section class="section">';
     html += this.buildCollapseHeader('audit-performance-content', 'Performance', true);
-    html += '<div id="audit-performance-content" class="audit-collapse-content">';
+    html += '<div id="audit-performance-content" class="collapse-content">';
     html += '<div class="metrics-grid">';
     html += '<div class="metric-item"><div class="metric-value">' + (data.stylesheets || 0) + '</div><div class="metric-label">Stylesheets</div></div>';
     html += '<div class="metric-item"><div class="metric-value">' + (data.rules || 0) + '</div><div class="metric-label">CSS Rules</div></div>';
@@ -90,9 +87,9 @@ var auditTab = {
     html += '</section>';
 
     // Links Section
-    html += '<section class="audit-section">';
+    html += '<section class="section">';
     html += this.buildCollapseHeader('audit-links-content', 'Links', false);
-    html += '<div id="audit-links-content" class="audit-collapse-content collapsed">';
+    html += '<div id="audit-links-content" class="collapse-content collapsed">';
     html += '<div class="loading-label">Checking internal links...</div>';
     html += '</div>';
     html += '</section>';
@@ -104,15 +101,14 @@ var auditTab = {
     auditTab.fetchLinks();
   },
 
-  buildCollapseHeader: function(targetId, title, expanded) {
-    var ariaState = expanded ? 'true' : 'false';
-    var chevronIcon = '<svg width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24"><path d="M6 9l6 6 6-6"/></svg>';
-    return '<button type="button" class="collapse-trigger" data-collapse-target="' + targetId + '" aria-expanded="' + ariaState + '">' +
-      '<div class="section-indicator"></div>' +
-      '<span class="section-label">' + title + '</span>' +
-      '<span class="collapse-icon' + (expanded ? '' : ' rotated') + '">' + chevronIcon + '</span>' +
-      '</button>';
-  },
+	buildCollapseHeader: function(targetId, title, expanded) {
+		var ariaState = expanded ? 'true' : 'false';
+		var chevronIcon = '<svg width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24"><path d="M6 9l6 6 6-6"/></svg>';
+		return '<button type="button" class="collapse-trigger" data-collapse-target="' + targetId + '" aria-expanded="' + ariaState + '">' +
+			'<span class="section-label">' + title + '</span>' +
+			'<span class="collapse-icon' + (expanded ? '' : ' rotated') + '">' + chevronIcon + '</span>' +
+			'</button>';
+	},
 
   fetchLinks: function() {
     if (typeof messaging !== 'undefined') {
@@ -148,13 +144,13 @@ var auditTab = {
     }
   },
 
-  ensureCollapseStyles: function() {
-    if (document.getElementById('audit-collapse-styles')) return;
-    var styleEl = document.createElement('style');
-    styleEl.id = 'audit-collapse-styles';
-    styleEl.textContent = '.collapse-trigger{width:100%;border:none;background:transparent;padding:0;display:flex;align-items:center;gap:var(--space-sm);cursor:pointer;}.collapse-trigger .section-indicator{flex-shrink:0;}.collapse-trigger .section-label{flex:1;font-family:var(--font-mono);font-size:var(--label);text-transform:uppercase;letter-spacing:0.08em;color:var(--text-secondary);}.collapse-trigger:focus-visible{outline:2px solid var(--text-primary);outline-offset:2px;}.collapse-icon{display:inline-flex;align-items:center;justify-content:center;color:var(--text-secondary);transition:transform var(--duration-normal) var(--ease-out);}.collapse-icon.rotated{transform:rotate(-90deg);}.audit-collapse-content{overflow:hidden;max-height:999px;opacity:1;transition:max-height var(--duration-normal) var(--ease-out),opacity var(--duration-normal) var(--ease-out);}.audit-collapse-content.collapsed{max-height:0;opacity:0;}';
-    document.head.appendChild(styleEl);
-  },
+	ensureCollapseStyles: function() {
+		if (document.getElementById('audit-collapse-styles')) return;
+		var styleEl = document.createElement('style');
+		styleEl.id = 'audit-collapse-styles';
+		styleEl.textContent = '.collapse-trigger{width:100%;border:none;background:transparent;padding:var(--space-sm) 0;display:flex;align-items:center;gap:var(--space-sm);cursor:pointer;}.collapse-trigger .section-label{flex:1;font-family:var(--font-mono);font-size:var(--label);text-transform:uppercase;letter-spacing:0.08em;color:var(--text-secondary);}.collapse-trigger:focus-visible{outline:2px solid var(--text-primary);outline-offset:2px;}.collapse-icon{display:inline-flex;align-items:center;justify-content:center;color:var(--text-secondary);transition:transform var(--duration-normal) var(--ease-out);}.collapse-icon.rotated{transform:rotate(-90deg);}.audit-collapse-content{overflow:hidden;max-height:999px;opacity:1;transition:max-height var(--duration-normal) var(--ease-out),opacity var(--duration-normal) var(--ease-out);}.audit-collapse-content.collapsed{max-height:0;opacity:0;}';
+		document.head.appendChild(styleEl);
+	},
 
   setupCollapsibleSections: function(parent) {
     if (!parent) return;

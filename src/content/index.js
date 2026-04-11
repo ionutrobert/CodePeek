@@ -1,25 +1,57 @@
 // Content Script - Plain ES5, no transpilation
 (function () {
-var DEBUG = false;
-  "use strict";
+  var DEBUG = true;
+"use strict";
 
-  if (DEBUG) console.log("Code Peek content script starting...");
+// Cached canvas for color parsing (performance optimization)
+var _colorCanvas = null;
+var _colorCtx = null;
+
+if (DEBUG) console.log("Code Peek content script starting...");
+
+// Safe sendMessage wrapper - handles "Extension context invalidated" errors
+var extensionValid = true;
+function safeSendMessage(message, callback) {
+  if (!extensionValid) {
+    if (DEBUG) console.log("Code Peek: Extension context invalid, skipping message");
+    return;
+  }
+  try {
+    if (typeof chrome === "undefined" || !chrome.runtime || !chrome.runtime.sendMessage) {
+      if (DEBUG) console.log("Code Peek: chrome.runtime not available");
+      return;
+    }
+    chrome.runtime.sendMessage(message, callback || function() {});
+  } catch (e) {
+    if (e.message && e.message.indexOf("Extension context invalidated") !== -1) {
+      extensionValid = false;
+      if (DEBUG) console.log("Code Peek: Extension context invalidated - stopping all messaging");
+    } else {
+      console.error("Code Peek: sendMessage error", e);
+    }
+  }
+}
 
   // Global error handler – prevents crashes from breaking everything
   window.onerror = function (msg, url, line) {
+    // Suppress extension context invalidated errors completely
+    if (msg && msg.indexOf("Extension context invalidated") !== -1) {
+      extensionValid = false;
+      return true; // suppress completely, no console output
+    }
+    // Suppress other extension-related errors
+    if (url && url.indexOf('chrome-extension://') !== -1) {
+      return true; // suppress extension errors
+    }
     console.error("Code Peek Global Error:", msg, "at", url + ":" + line);
     return true; // suppress default
   };
 
-  // Page unload detection – notify side panel that context is going away
-  window.addEventListener("beforeunload", function () {
-    if (DEBUG) console.log("Code Peek: Page unloading");
-    if (chrome && chrome.runtime && chrome.runtime.sendMessage) {
-      try {
-        chrome.runtime.sendMessage({ type: "PAGE_UNLOADED" });
-      } catch (e) {}
-    }
-  });
+// Page unload detection – notify side panel that context is going away
+window.addEventListener("beforeunload", function () {
+  if (DEBUG) console.log("Code Peek: Page unloading");
+  safeSendMessage({ type: "PAGE_UNLOADED" });
+});
 
   // === INSPECT MODE ===
   var inspectActive = false;
@@ -274,14 +306,14 @@ function onClick(e) {
         var tooltipTop = rect.top - 30;
         if (tooltipTop < 10) tooltipTop = rect.top + rect.height + 10;
 
-        infoEl.style.cssText =
-          "position:" +
-          (isFixed ? "fixed" : "fixed") +
-          ";top:" +
-          tooltipTop +
-          "px;left:" +
-          rect.left +
-          "px;background:#1f2937;color:#fff;padding:2px 6px;border-radius:3px;font-size:11px;font-family:monospace;pointer-events:none;z-index:1000000;white-space:nowrap;";
+infoEl.style.cssText =
+    "position:" +
+    (isFixed ? "fixed" : "fixed") +
+    ";top:" +
+    tooltipTop +
+    "px;left:" +
+    rect.left +
+    "px;background:#1f2937;color:#fff;padding:6px 10px;border-radius:6px;font-size:14px;font-weight:600;font-family:monospace;pointer-events:none;z-index:1000000;white-space:nowrap;";
         document.body.appendChild(infoEl);
      }
 
@@ -347,18 +379,22 @@ function onClick(e) {
         document.body.appendChild(line);
         distanceLines.push(line);
 
-        var label = document.createElement("div");
-        label.textContent = Math.round(length) + " px";
-        label.style.position = "fixed";
-        label.style.left = (isVertical ? left : left + length / 2) + "px";
-        label.style.top = (isVertical ? top + length / 2 : top) + "px";
-        label.style.transform = "translate(-50%, -50%)";
-        label.style.color = color;
-        label.style.fontFamily = "monospace";
-        label.style.fontSize = "10px";
-        label.style.whiteSpace = "nowrap";
-        label.style.pointerEvents = "none";
-        label.style.zIndex = String(labelZ);
+var label = document.createElement("div");
+    label.textContent = Math.round(length) + " px";
+    label.style.position = "fixed";
+    label.style.left = (isVertical ? left : left + length / 2) + "px";
+    label.style.top = (isVertical ? top + length / 2 : top) + "px";
+    label.style.transform = "translate(-50%, -50%)";
+    label.style.color = "#fff";
+    label.style.background = color;
+    label.style.fontFamily = "monospace";
+    label.style.fontSize = "13px";
+    label.style.fontWeight = "600";
+    label.style.padding = "3px 7px";
+    label.style.borderRadius = "4px";
+    label.style.whiteSpace = "nowrap";
+    label.style.pointerEvents = "none";
+    label.style.zIndex = String(labelZ);
 
         document.body.appendChild(label);
         distanceLines.push(label);
@@ -454,44 +490,18 @@ margin: {
          top: rect.top,
          left: rect.left,
        },
-       html: el.outerHTML // For element export
-     };
+  html: el.outerHTML // For element export
+  };
 
-    // Send data to side panel with robust retry to handle transient errors
-    if (
-      typeof chrome !== "undefined" &&
-      chrome.runtime &&
-      chrome.runtime.sendMessage
-    ) {
-      var maxAttempts = 4;
-      var attempt = 0;
-      var delay = 100;
-      function sendData() {
-        attempt++;
-        try {
-          chrome.runtime.sendMessage({
-            type: "ELEMENT_INSPECTED",
-            payload: data,
-          });
-          if (DEBUG) console.log("Code Peek: Data sent for", el.tagName);
-        } catch (err) {
-          console.error("Code Peek: sendMessage failed (attempt " + attempt + "):", err);
-          if (attempt < maxAttempts) {
-            setTimeout(sendData, delay);
-            delay *= 2; // exponential backoff
-          } else {
-            console.error("Code Peek: All retries exhausted. Extension may need to be reloaded.");
-            // Could show a notification/in-app message here if API available
-          }
-        }
-      }
-      sendData();
-    } else {
-      console.warn("Code Peek: chrome.runtime.sendMessage not available");
-    }
+  // Send data to side panel
+  safeSendMessage({
+    type: "ELEMENT_INSPECTED",
+    payload: data,
+  });
+  if (DEBUG) console.log("Code Peek: Data sent for", el.tagName);
 
-    // Keep inspect mode active – do NOT call stopInspectMode()
-  }
+  // Keep inspect mode active – do NOT call stopInspectMode()
+}
 
   function getSelector(el) {
     if (!el) return "unknown";
@@ -529,16 +539,28 @@ margin: {
     }
   }
 
-  function getExtensionFromUrl(url) {
-    try {
-      var filename = getFilenameFromUrl(url);
-      var dot = filename.lastIndexOf(".");
-      if (dot > 0) {
-        return filename.substring(dot + 1).toLowerCase();
-      }
-    } catch (e) {}
-    return "";
-  }
+	function getExtensionFromUrl(url) {
+		try {
+			var filename = getFilenameFromUrl(url);
+			var dot = filename.lastIndexOf(".");
+			if (dot > 0) {
+				var ext = filename.substring(dot + 1).toLowerCase();
+				// Validate it's a known image format
+				var validExtensions = ['jpg', 'jpeg', 'png', 'gif', 'webp', 'svg', 'ico', 'bmp', 'avif', 'heic', 'heif', 'tiff', 'tif'];
+				if (validExtensions.indexOf(ext) !== -1) {
+					return ext;
+				}
+			}
+			// Try to detect from URL patterns or content-type hints
+			if (url.indexOf('image/png') !== -1) return 'png';
+			if (url.indexOf('image/jpeg') !== -1 || url.indexOf('image/jpg') !== -1) return 'jpg';
+			if (url.indexOf('image/gif') !== -1) return 'gif';
+			if (url.indexOf('image/webp') !== -1) return 'webp';
+			if (url.indexOf('image/svg') !== -1) return 'svg';
+			if (url.indexOf('image/avif') !== -1) return 'avif';
+		} catch (e) {}
+		return "";
+	}
 
   function createSVGDataURL(svgString) {
     // Encode SVG as data URL, limit size to 50KB
@@ -731,32 +753,30 @@ function extractColors() {
     return result.slice(0, 15);
   }
 
-  function extractAssets() {
-    var assets = [];
+function extractAssets() {
+var assets = [];
 
-    // Limit to first 50 images to prevent hang
-    var images = document.querySelectorAll("img[src]");
-    var imgCount = 0;
-    var maxImages = 50;
-    for (var i = 0; i < images.length && imgCount < maxImages; i++) {
-      var img = images[i];
-      var src = img.src;
-      if (src && isValidAssetUrl(src)) {
-        var w = img.width || img.offsetWidth || 0;
-        var h = img.height || img.offsetHeight || 0;
-        if (w > 0 && h > 0) {
-          assets.push({
-            type: "image",
-            src: src,
-            filename: getFilenameFromUrl(src),
-            extension: getExtensionFromUrl(src),
-            width: w,
-            height: h,
-          });
-          imgCount++;
-        }
-      }
-    }
+// Extract images - be more lenient
+var images = document.querySelectorAll("img[src]");
+var imgCount = 0;
+var maxImages = 50;
+for (var i = 0; i < images.length && imgCount < maxImages; i++) {
+var img = images[i];
+var src = img.src;
+if (src && isValidAssetUrl(src)) {
+var w = img.naturalWidth || img.width || img.offsetWidth || 0;
+var h = img.naturalHeight || img.height || img.offsetHeight || 0;
+assets.push({
+type: "image",
+src: src,
+filename: getFilenameFromUrl(src),
+extension: getExtensionFromUrl(src),
+width: w,
+height: h,
+});
+imgCount++;
+}
+}
 
     // Extract srcset sources (limited)
     var sources = document.querySelectorAll("source[srcset]");
@@ -839,21 +859,19 @@ function extractColors() {
       }
     }
 
-    // Deduplicate and filter
-    var seen = {};
-    var filtered = [];
-    for (var i = 0; i < assets.length; i++) {
-      var asset = assets[i];
-      if (!seen[asset.src]) {
-        seen[asset.src] = true;
-        if (asset.width >= 8 && asset.height >= 8) {
-          filtered.push(asset);
-        }
-      }
-    }
+// Deduplicate and filter
+var seen = {};
+var filtered = [];
+for (var i = 0; i < assets.length; i++) {
+var asset = assets[i];
+if (!seen[asset.src]) {
+seen[asset.src] = true;
+filtered.push(asset);
+}
+}
 
-    return filtered;
-  }
+return filtered;
+}
 
   function seenAsset(assets, url) {
     for (var i = 0; i < assets.length; i++) {
@@ -958,83 +976,98 @@ function extractColors() {
       stats.size = totalSize;
     }
 
-    var elements = document.querySelectorAll(
-      "p, span, h1, h2, h3, h4, h5, h6, a, button, li",
-    );
-    var maxContrast = 50;
-    var contrastCount = 0;
+var elements = document.querySelectorAll(
+"p, span, h1, h2, h3, h4, h5, h6, a, button, li",
+);
+var maxContrast = 50;
+var contrastCount = 0;
+var seenSelectors = {};
 
-    for (var i = 0; i < elements.length && contrastCount < maxContrast; i++) {
-      var el = elements[i];
-      try {
-        var style = window.getComputedStyle(el);
-        var fg = style.color;
-        var bg = style.backgroundColor;
+for (var i = 0; i < elements.length && contrastCount < maxContrast; i++) {
+var el = elements[i];
+try {
+var style = window.getComputedStyle(el);
+var fg = style.color;
+var bg = style.backgroundColor;
 
-        // If background is transparent, try to get parent background
-        var parent = el.parentElement;
-        var depth = 0;
-        var maxDepth = 10;
-        while (
-          (bg === "transparent" || (bg === "rgba(0, 0, 0, 0)" && parent)) &&
-          parent &&
-          depth < maxDepth
-        ) {
-          try {
-            bg = window.getComputedStyle(parent).backgroundColor;
-          } catch (error) {
-            break;
-          }
+// If background is transparent, try to get parent background
+var parent = el.parentElement;
+var depth = 0;
+var maxDepth = 10;
+while (
+(bg === "transparent" || bg === "rgba(0, 0, 0, 0)") &&
+parent &&
+depth < maxDepth
+) {
+try {
+bg = window.getComputedStyle(parent).backgroundColor;
+} catch (error) {
+break;
+}
 
-          if (parent.tagName === "BODY" || parent.tagName === "HTML") {
-            break;
-          }
+if (parent.tagName === "BODY" || parent.tagName === "HTML") {
+break;
+}
 
-          parent = parent.parentElement;
-          depth++;
-        }
+parent = parent.parentElement;
+depth++;
+}
 
-        if (fg && bg && fg !== "transparent" && bg !== "rgba(0, 0, 0, 0)") {
-          var ratio = calculateContrastRatio(fg, bg);
-          if (ratio < 4.5) {
-            contrastCount++;
-            var fontSize = parseFloat(style.fontSize);
-            var isLarge =
-              fontSize >= 24 || (fontSize >= 18.66 && style.fontWeight >= 700);
+// Skip if still transparent
+if (!bg || bg === "transparent" || bg === "rgba(0, 0, 0, 0)") {
+continue;
+}
 
-            stats.contrastIssues.push({
-              tag: el.tagName.toLowerCase(),
-              fg: fg,
-              bg: bg,
-              ratio: ratio,
-              isLarge: isLarge,
-              aa: ratio >= (isLarge ? 3 : 4.5),
-              aaa: ratio >= (isLarge ? 4.5 : 7),
-              selector: getSimpleSelector(el),
-            });
-          }
-        }
-      } catch (e) {}
-    }
+// Skip duplicate selectors
+var selector = getSimpleSelector(el);
+if (seenSelectors[selector]) {
+continue;
+}
 
-    return stats;
-  }
+if (fg && fg !== "transparent") {
+var ratio = calculateContrastRatio(fg, bg);
+if (ratio < 4.5) {
+seenSelectors[selector] = true;
+contrastCount++;
+var fontSize = parseFloat(style.fontSize);
+var isLarge =
+fontSize >= 24 || (fontSize >= 18.66 && style.fontWeight >= 700);
+
+stats.contrastIssues.push({
+tag: el.tagName.toLowerCase(),
+fg: fg,
+bg: bg,
+ratio: ratio,
+isLarge: isLarge,
+aa: ratio >= (isLarge ? 3 : 4.5),
+aaa: ratio >= (isLarge ? 4.5 : 7),
+selector: selector,
+});
+}
+}
+} catch (e) {}
+}
+
+return stats;
+}
 
 function calculateContrastRatio(color1, color2) {
-  var c1 = parseColor(color1);
-  var c2 = parseColor(color2);
-  if (!c1 || !c2) return 1;
+var c1 = parseColor(color1);
+var c2 = parseColor(color2);
+if (!c1 || !c2) {
+console.warn('[Code Peek] Failed to parse colors:', color1, color2);
+return 1;
+}
 
-  // Blend colors with alpha over white background for contrast calculation
-  // This ensures semi-transparent colors are properly evaluated
-  var blended1 = blendColorOverWhite(c1);
-  var blended2 = blendColorOverWhite(c2);
+var blended1 = blendColorOverWhite(c1);
+var blended2 = blendColorOverWhite(c2);
 
-  var l1 = getLuminance(blended1.r, blended1.g, blended1.b);
-  var l2 = getLuminance(blended2.r, blended2.g, blended2.b);
-  var lighter = Math.max(l1, l2);
-  var darker = Math.min(l1, l2);
-  return (lighter + 0.05) / (darker + 0.05);
+var l1 = getLuminance(blended1.r, blended1.g, blended1.b);
+var l2 = getLuminance(blended2.r, blended2.g, blended2.b);
+var lighter = Math.max(l1, l2);
+var darker = Math.min(l1, l2);
+var ratio = (lighter + 0.05) / (darker + 0.05);
+return Math.round(ratio * 100) / 100;
 }
 
 // Blend a color with alpha over a white background
@@ -1051,66 +1084,87 @@ function blendColorOverWhite(color) {
 }
 
 function parseColor(str) {
-  if (!str || str === "transparent" || str === "rgba(0, 0, 0, 0)")
+  if (!str) return null;
+  
+  // Normalize string
+  str = String(str).trim();
+  
+  // Handle transparent/null colors
+  if (str === "transparent" || str === "rgba(0, 0, 0, 0)" || str === "rgba(0,0,0,0)") {
     return null;
-
-  // Create a singleton dummy element for color normalization if it doesn't exist
-  if (!window._codePeekParser) {
-    var div = document.createElement("div");
-    div.id = "code-peek-color-parser";
-    div.style.cssText =
-      "display:none !important; visibility:hidden !important; position:fixed !important; top:-9999px !important;";
-    document.documentElement.appendChild(div);
-    window._codePeekParser = div;
+  }
+  
+  // Handle invalid concatenated colors (sometimes CSS returns multiple values)
+  if (str.indexOf(') ') !== -1 && str.indexOf('(') !== -1) {
+    // Take the first color only
+    var firstParen = str.indexOf(')');
+    str = str.substring(0, firstParen + 1);
   }
 
+  // Handle rgb/rgba directly
+var directMatch = str.match(/^rgba?\(\s*(\d+)\s*,\s*(\d+)\s*,\s*(\d+)\s*(?:,\s*([01]?\.\d+|\d+\.?\d*))?\s*\)$/);
+if (directMatch) {
+var alpha = 1;
+if (directMatch[4] !== undefined && directMatch[4] !== "") {
+alpha = parseFloat(directMatch[4]);
+if (alpha < 0) alpha = 0;
+if (alpha > 1) alpha = 1;
+}
+return {
+r: parseInt(directMatch[1]),
+g: parseInt(directMatch[2]),
+b: parseInt(directMatch[3]),
+a: alpha,
+};
+}
+
+// Handle hex directly
+if (str.charAt(0) === "#") {
+var hex = str.slice(1);
+if (hex.length === 3) {
+hex = hex[0] + hex[0] + hex[1] + hex[1] + hex[2] + hex[2];
+}
+if (hex.length === 6 && /^[0-9a-fA-F]{6}$/.test(hex)) {
+return {
+r: parseInt(hex.slice(0, 2), 16),
+g: parseInt(hex.slice(2, 4), 16),
+b: parseInt(hex.slice(4, 6), 16),
+a: 1,
+};
+}
+if (hex.length === 8 && /^[0-9a-fA-F]{8}$/.test(hex)) {
+return {
+r: parseInt(hex.slice(0, 2), 16),
+g: parseInt(hex.slice(2, 4), 16),
+b: parseInt(hex.slice(4, 6), 16),
+a: parseInt(hex.slice(6, 8), 16) / 255,
+};
+}
+}
+
+  // For modern color formats (oklch, lab, color(), etc), use canvas for conversion
   try {
-    window._codePeekParser.style.color = "rgb(0,0,0)"; // Baseline reset
-    window._codePeekParser.style.color = str;
-    var computed = window.getComputedStyle(window._codePeekParser).color;
-
-    // Browser returns color in rgb() or rgba() format after normalization
-    // Handles all modern color formats: oklab, lab, color(), hex, rgb, rgba
-    // Regex captures: rgb(r,g,b) or rgba(r,g,b,a) with various alpha formats
-    var m = computed.match(
-      /^rgba?\(\s*(\d+)\s*,\s*(\d+)\s*,\s*(\d+)\s*(?:,\s*([01]?\.\d+|\d+\.?\d*))?\s*\)$/,
-    );
-    if (m) {
-      var alpha = 1;
-      if (m[4] !== undefined && m[4] !== "") {
-        alpha = parseFloat(m[4]);
-        // Clamp alpha to valid range
-        if (alpha < 0) alpha = 0;
-        if (alpha > 1) alpha = 1;
-      }
-      return {
-        r: parseInt(m[1]),
-        g: parseInt(m[2]),
-        b: parseInt(m[3]),
-        a: alpha,
-      };
+    if (!_colorCanvas) {
+      _colorCanvas = document.createElement('canvas');
+      _colorCanvas.width = 1;
+      _colorCanvas.height = 1;
+      _colorCtx = _colorCanvas.getContext('2d', { willReadFrequently: true });
     }
-
-    // Fallback: try parsing hex colors directly
-    if (computed.charAt(0) === "#") {
-      var hex = computed.slice(1);
-      if (hex.length === 3) {
-        hex = hex[0] + hex[0] + hex[1] + hex[1] + hex[2] + hex[2];
-      }
-      if (hex.length === 6 && /^[0-9a-fA-F]{6}$/.test(hex)) {
-        return {
-          r: parseInt(hex.slice(0, 2), 16),
-          g: parseInt(hex.slice(2, 4), 16),
-          b: parseInt(hex.slice(4, 6), 16),
-          a: 1,
-        };
-      }
-    }
+    _colorCtx.fillStyle = '#000000';
+    _colorCtx.fillStyle = str;
+    _colorCtx.fillRect(0, 0, 1, 1);
+    var data = _colorCtx.getImageData(0, 0, 1, 1).data;
+    return {
+      r: data[0],
+      g: data[1],
+      b: data[2],
+      a: data[3] / 255,
+    };
   } catch (e) {
-    console.warn("Code Peek: Color normalization failed", str, e.message);
-  }
+console.warn('[Code Peek] Color parsing failed:', str, e.message);
+}
 
-  return null;
+return null;
 }
 
   function getLuminance(r, g, b) {
@@ -1175,261 +1229,313 @@ function checkBrokenLinks() {
 }
 
 function detectTechStack() {
-  var result = {
-    frameworks: [],
-    css: [],
-    build: [],
-    cms: [],
-    plugins: [],
-    confidence: {}
-  };
+  // Use TechDetector module if available (bundled from tech-detector.js)
+  if (typeof TechDetector !== 'undefined' && TechDetector.detect) {
+    var raw = TechDetector.detect();
 
-  var html = document.documentElement.innerHTML || '';
-  var bodyClasses = (document.body && document.body.className) || '';
-
-  // Detect JavaScript frameworks
-  if (window.React || window.ReactDOM) result.frameworks.push('React');
-  if (window.Vue) result.frameworks.push('Vue');
-  if (window.angular) result.frameworks.push('Angular');
-  if (window.svelte) result.frameworks.push('Svelte');
-  if (window.Ember) result.frameworks.push('Ember');
-  if (window.Backbone) result.frameworks.push('Backbone');
-
-  // Detect Next.js via __NEXT_DATA__ global or __next element
-  if (window.__NEXT_DATA__ || document.getElementById('__next')) {
-    result.frameworks.push('Next.js');
-  }
-
-  // Detect Nuxt via __NUXT__ global or __nuxt element
-  if (window.__NUXT__ || document.getElementById('__nuxt') || document.getElementById('__layout')) {
-    result.frameworks.push('Nuxt');
-  }
-
-  // Detect SvelteKit via sveltekit in scripts
-  var svelteKitScripts = document.querySelectorAll('script[src*="sveltekit"], script[type="module"]');
-  svelteKitScripts.forEach(function(s) {
-    if (s.src && s.src.indexOf('sveltekit') !== -1) {
-      if (result.frameworks.indexOf('SvelteKit') === -1) result.frameworks.push('SvelteKit');
+    // Helper to extract names from TechDetector results (which are {name, icon, version} objects)
+    function extractNames(arr) {
+      if (!arr || !Array.isArray(arr)) return [];
+      return arr.map(function(item) {
+        return typeof item === 'string' ? item : (item.name || item);
+      });
     }
-  });
 
-  // Detect Astro via astro: prefix in scripts or __astro__ global
-  if (window.__astro__ || html.indexOf('astro:') !== -1) {
-    result.frameworks.push('Astro');
-  }
+    // Normalize to expected UI structure
+    var result = {
+      frameworks: extractNames(raw.frameworks),
+      css: extractNames(raw.cssFrameworks),
+      build: [], // TechDetector doesn't have separate build tools
+      cms: raw.cms || [], // CMS items are objects with {name, plugins}
+      plugins: [],
+      basicTech: raw.basicTech || null,
+      confidence: { overall: 0 }
+    };
 
-  // Detect jQuery
-  if (window.jQuery) {
-    result.frameworks.push('jQuery');
-    if (window.jQuery.fn && window.jQuery.fn.modal) result.css.push('Bootstrap (via jQuery)');
-  }
-
-  // Detect Tailwind CSS by utility class patterns
-  if (/\b(bg|text|flex|grid|p|m|pt|pr|pb|pl|mx|my|w|h|min-w|max-w|border|rounded|shadow|opacity|z|inset|absolute|relative|fixed|sticky)-[a-z0-9]+\b/.test(html)) {
-    result.css.push('Tailwind CSS');
-  }
-
-  // Detect Bootstrap via class patterns
-  if (/\b(container|row|col(?:-sm|-md|-lg|-xl)?)\b/.test(html)) {
-    result.css.push('Bootstrap');
-  }
-
-  // Detect Bulma
-  if (/\b(is-active|is-primary|is-success|has-text-centered)\b/.test(html)) {
-    result.css.push('Bulma');
-  }
-
-  // Detect build tools from script src
-  var scripts = document.querySelectorAll('script[src]');
-  scripts.forEach(function(s) {
-    var src = s.src.toLowerCase();
-    if (src.indexOf('webpack') !== -1 && result.build.indexOf('Webpack') === -1) result.build.push('Webpack');
-    if (src.indexOf('vite') !== -1 && result.build.indexOf('Vite') === -1) result.build.push('Vite');
-    if (src.indexOf('parcel') !== -1 && result.build.indexOf('Parcel') === -1) result.build.push('Parcel');
-    if (src.indexOf('next') !== -1 && result.frameworks.indexOf('Next.js') === -1) result.frameworks.push('Next.js');
-    if (src.indexOf('nuxt') !== -1 && result.frameworks.indexOf('Nuxt') === -1) result.frameworks.push('Nuxt');
-    if (src.indexOf('gatsby') !== -1 && result.frameworks.indexOf('Gatsby') === -1) result.frameworks.push('Gatsby');
-  });
-
-  // === CMS DETECTION ===
-
-  // WordPress detection - multiple signals
-  var wordpressSignals = 0;
-  var wpPluginNames = [];
-
-  // Check for wp- class prefixes
-  if (/\bwp-[a-z]+\b/.test(bodyClasses) || /\bwp-[a-z]+\b/.test(html)) {
-    wordpressSignals++;
-  }
-
-  // Check for /wp-content/ in URLs
-  var assets = document.querySelectorAll('script[src], link[href], img[src]');
-  assets.forEach(function(asset) {
-    var url = (asset.src || asset.href || '').trim();
-    if (!url) return;
-    var normalized = url.toLowerCase();
-    if (normalized.indexOf('/wp-content/') !== -1) {
-      wordpressSignals++;
+    // Extract WordPress plugins if detected
+    if (raw.wordpress && raw.wordpress.plugins) {
+      result.plugins = raw.wordpress.plugins.slice();
     }
-    // Extract plugin names
-    var pluginMatch = url.match(/\/wp-content\/plugins\/([^\/?#]+)/i);
-    if (pluginMatch && pluginMatch[1]) {
-      var pluginName = pluginMatch[1];
-      try {
-        pluginName = decodeURIComponent(pluginName);
-      } catch (e) {}
-      pluginName = pluginName.replace(/[^a-zA-Z0-9_-]/g, '');
-      if (pluginName && wpPluginNames.indexOf(pluginName) === -1) {
-        wpPluginNames.push(pluginName);
-      }
+
+    // Extract e-commerce as plugins
+    if (raw.ecommerce && raw.ecommerce.length > 0) {
+      result.plugins = result.plugins.concat(extractNames(raw.ecommerce));
     }
-  });
 
-  // Check for window.wp global
-  if (window.wp) {
-    wordpressSignals++;
-  }
-
-  // Check for WordPress-specific meta generator
-  var metaGenerator = document.querySelector('meta[name="generator"][content*="WordPress"]');
-  if (metaGenerator) {
-    wordpressSignals++;
-  }
-
-  if (wordpressSignals > 0) {
-    result.cms.push({
-      name: 'WordPress',
-      plugins: wpPluginNames.sort()
-    });
-  }
-
-  // WooCommerce detection
-  var wooCommerceDetected = false;
-  if (window.wc || window.wcSettings) {
-    wooCommerceDetected = true;
-  }
-  if (/\bwoocommerce\b|\bwc-\w+\b/.test(bodyClasses) || /\bwoocommerce\b/.test(html)) {
-    wooCommerceDetected = true;
-  }
-  if (wooCommerceDetected) {
-    result.plugins.push('WooCommerce');
-  }
-
-  // Elementor detection
-  var elementorDetected = false;
-  if (window.elementorFrontend || window.elementor) {
-    elementorDetected = true;
-  }
-  if (/\belementor\b|\belementor-\w+\b/.test(bodyClasses) || /\belementor\b/.test(html)) {
-    elementorDetected = true;
-  }
-  var elementorStyles = document.querySelectorAll('link[href*="elementor"]');
-  if (elementorStyles.length > 0) {
-    elementorDetected = true;
-  }
-  if (elementorDetected) {
-    result.plugins.push('Elementor');
-  }
-
-  // Yoast SEO detection
-  if (window.yoast || window.YoastSEO) {
-    result.plugins.push('Yoast SEO');
-  }
-
-  // Jetpack detection
-  if (window.Jetpack) {
-    result.plugins.push('Jetpack');
-  }
-
-  // Shopify detection
-  var shopifyDetected = false;
-  if (window.Shopify) {
-    shopifyDetected = true;
-  }
-  var shopifyScripts = document.querySelectorAll('script[src*="cdn.shopify.com"], script[src*="shopify"]');
-  if (shopifyScripts.length > 0) {
-    shopifyDetected = true;
-  }
-  if (shopifyDetected && !result.cms.some(function(c) { return c.name === 'Shopify'; })) {
-    result.cms.push({ name: 'Shopify', plugins: [] });
-  }
-
-  // Drupal detection
-  var drupalDetected = false;
-  if (window.Drupal) {
-    drupalDetected = true;
-  }
-  var drupalSettings = document.querySelector('script[data-drupal-selector]');
-  if (drupalSettings) {
-    drupalDetected = true;
-  }
-  if (/\bDrupal\b/.test(html)) {
-    drupalDetected = true;
-  }
-  if (drupalDetected && !result.cms.some(function(c) { return c.name === 'Drupal'; })) {
-    result.cms.push({ name: 'Drupal', plugins: [] });
-  }
-
-  // Joomla detection
-  if (window.Joomla) {
-    if (!result.cms.some(function(c) { return c.name === 'Joomla'; })) {
-      result.cms.push({ name: 'Joomla', plugins: [] });
+    // Extract libraries as additional info
+    if (raw.libraries && raw.libraries.length > 0) {
+      result.plugins = result.plugins.concat(extractNames(raw.libraries));
     }
-  }
 
-  // Webflow detection
-  var webflowDetected = false;
-  if (window.Webflow) {
-    webflowDetected = true;
-  }
-  var webflowScripts = document.querySelectorAll('script[src*="webflow"]');
-  if (webflowScripts.length > 0) {
-    webflowDetected = true;
-  }
-  if (/\bwf-\w+\b/.test(html)) {
-    webflowDetected = true;
-  }
-  if (webflowDetected && !result.cms.some(function(c) { return c.name === 'Webflow'; })) {
-    result.cms.push({ name: 'Webflow', plugins: [] });
-  }
-
-  // Squarespace detection
-  if (window.Squarespace) {
-    if (!result.cms.some(function(c) { return c.name === 'Squarespace'; })) {
-      result.cms.push({ name: 'Squarespace', plugins: [] });
+    // Extract analytics
+    if (raw.analytics && raw.analytics.length > 0) {
+      result.plugins = result.plugins.concat(extractNames(raw.analytics));
     }
+
+    // Calculate confidence
+    var totalSignals = result.frameworks.length + result.css.length +
+      result.build.length + result.cms.length + result.plugins.length;
+    result.confidence.overall = Math.min(100, totalSignals * 12);
+
+    return result;
   }
 
-  // Wix detection
-  if (window.wixBiSession || window.wixPerformanceMeasurements) {
-    if (!result.cms.some(function(c) { return c.name === 'Wix'; })) {
-      result.cms.push({ name: 'Wix', plugins: [] });
-    }
-  }
+	// Fallback inline detection
+	var result = {
+		frameworks: [],
+		css: [],
+		build: [],
+		cms: [],
+		plugins: [],
+		confidence: {}
+	};
 
-  // Deduplicate arrays
-  var seen = {};
-  result.frameworks = result.frameworks.filter(function(item) {
-    return seen.hasOwnProperty(item) ? false : (seen[item] = true);
-  });
-  seen = {};
-  result.css = result.css.filter(function(item) {
-    return seen.hasOwnProperty(item) ? false : (seen[item] = true);
-  });
-  seen = {};
-  result.build = result.build.filter(function(item) {
-    return seen.hasOwnProperty(item) ? false : (seen[item] = true);
-  });
-  seen = {};
-  result.plugins = result.plugins.filter(function(item) {
-    return seen.hasOwnProperty(item) ? false : (seen[item] = true);
-  });
+	var html = document.documentElement.innerHTML || '';
+	var bodyClasses = (document.body && document.body.className) || '';
 
-  // Calculate confidence based on signals count
-  var totalSignals = result.frameworks.length + result.css.length + result.build.length + result.cms.length + result.plugins.length;
-  result.confidence.overall = Math.min(100, totalSignals * 15);
+	// Detect JavaScript frameworks
+	if (window.React || window.ReactDOM) result.frameworks.push('React');
+	if (window.Vue) result.frameworks.push('Vue');
+	if (window.angular) result.frameworks.push('Angular');
+	if (window.svelte) result.frameworks.push('Svelte');
+	if (window.Ember) result.frameworks.push('Ember');
+	if (window.Backbone) result.frameworks.push('Backbone');
 
-  return result;
+	// Detect Next.js via __NEXT_DATA__ global or __next element
+	if (window.__NEXT_DATA__ || document.getElementById('__next')) {
+		result.frameworks.push('Next.js');
+	}
+
+	// Detect Nuxt via __NUXT__ global or __nuxt element
+	if (window.__NUXT__ || document.getElementById('__nuxt') || document.getElementById('__layout')) {
+		result.frameworks.push('Nuxt');
+	}
+
+	// Detect SvelteKit via sveltekit in scripts
+	var svelteKitScripts = document.querySelectorAll('script[src*="sveltekit"], script[type="module"]');
+	svelteKitScripts.forEach(function(s) {
+		if (s.src && s.src.indexOf('sveltekit') !== -1) {
+			if (result.frameworks.indexOf('SvelteKit') === -1) result.frameworks.push('SvelteKit');
+		}
+	});
+
+	// Detect Astro via astro: prefix in scripts or __astro__ global
+	if (window.__astro__ || html.indexOf('astro:') !== -1) {
+		result.frameworks.push('Astro');
+	}
+
+	// Detect jQuery
+	if (window.jQuery) {
+		result.frameworks.push('jQuery');
+		if (window.jQuery.fn && window.jQuery.fn.modal) result.css.push('Bootstrap (via jQuery)');
+	}
+
+	// Detect Tailwind CSS by utility class patterns
+	if (/\b(bg|text|flex|grid|p|m|pt|pr|pb|pl|mx|my|w|h|min-w|max-w|border|rounded|shadow|opacity|z|inset|absolute|relative|fixed|sticky)-[a-z0-9]+\b/.test(html)) {
+		result.css.push('Tailwind CSS');
+	}
+
+	// Detect Bootstrap via class patterns
+	if (/\b(container|row|col(?:-sm|-md|-lg|-xl)?)\b/.test(html)) {
+		result.css.push('Bootstrap');
+	}
+
+	// Detect Bulma
+	if (/\b(is-active|is-primary|is-success|has-text-centered)\b/.test(html)) {
+		result.css.push('Bulma');
+	}
+
+	// Detect build tools from script src
+	var scripts = document.querySelectorAll('script[src]');
+	scripts.forEach(function(s) {
+		var src = s.src.toLowerCase();
+		if (src.indexOf('webpack') !== -1 && result.build.indexOf('Webpack') === -1) result.build.push('Webpack');
+		if (src.indexOf('vite') !== -1 && result.build.indexOf('Vite') === -1) result.build.push('Vite');
+		if (src.indexOf('parcel') !== -1 && result.build.indexOf('Parcel') === -1) result.build.push('Parcel');
+		if (src.indexOf('next') !== -1 && result.frameworks.indexOf('Next.js') === -1) result.frameworks.push('Next.js');
+		if (src.indexOf('nuxt') !== -1 && result.frameworks.indexOf('Nuxt') === -1) result.frameworks.push('Nuxt');
+		if (src.indexOf('gatsby') !== -1 && result.frameworks.indexOf('Gatsby') === -1) result.frameworks.push('Gatsby');
+	});
+
+	// === CMS DETECTION ===
+
+	// WordPress detection - multiple signals
+	var wordpressSignals = 0;
+	var wpPluginNames = [];
+
+	// Check for wp- class prefixes
+	if (/\bwp-[a-z]+\b/.test(bodyClasses) || /\bwp-[a-z]+\b/.test(html)) {
+		wordpressSignals++;
+	}
+
+	// Check for /wp-content/ in URLs
+	var assets = document.querySelectorAll('script[src], link[href], img[src]');
+	assets.forEach(function(asset) {
+		var url = (asset.src || asset.href || '').trim();
+		if (!url) return;
+		var normalized = url.toLowerCase();
+		if (normalized.indexOf('/wp-content/') !== -1) {
+			wordpressSignals++;
+		}
+		// Extract plugin names
+		var pluginMatch = url.match(/\/wp-content\/plugins\/([^\/?#]+)/i);
+		if (pluginMatch && pluginMatch[1]) {
+			var pluginName = pluginMatch[1];
+			try {
+				pluginName = decodeURIComponent(pluginName);
+			} catch (e) {}
+			pluginName = pluginName.replace(/[^a-zA-Z0-9_-]/g, '');
+			if (pluginName && wpPluginNames.indexOf(pluginName) === -1) {
+				wpPluginNames.push(pluginName);
+			}
+		}
+	});
+
+	// Check for window.wp global
+	if (window.wp) {
+		wordpressSignals++;
+	}
+
+	// Check for WordPress-specific meta generator
+	var metaGenerator = document.querySelector('meta[name="generator"][content*="WordPress"]');
+	if (metaGenerator) {
+		wordpressSignals++;
+	}
+
+	if (wordpressSignals > 0) {
+		result.cms.push({
+			name: 'WordPress',
+			plugins: wpPluginNames.sort()
+		});
+	}
+
+	// WooCommerce detection
+	var wooCommerceDetected = false;
+	if (window.wc || window.wcSettings) {
+		wooCommerceDetected = true;
+	}
+	if (/\bwoocommerce\b|\bwc-\w+\b/.test(bodyClasses) || /\bwoocommerce\b/.test(html)) {
+		wooCommerceDetected = true;
+	}
+	if (wooCommerceDetected) {
+		result.plugins.push('WooCommerce');
+	}
+
+	// Elementor detection
+	var elementorDetected = false;
+	if (window.elementorFrontend || window.elementor) {
+		elementorDetected = true;
+	}
+	if (/\belementor\b|\belementor-\w+\b/.test(bodyClasses) || /\belementor\b/.test(html)) {
+		elementorDetected = true;
+	}
+	var elementorStyles = document.querySelectorAll('link[href*="elementor"]');
+	if (elementorStyles.length > 0) {
+		elementorDetected = true;
+	}
+	if (elementorDetected) {
+		result.plugins.push('Elementor');
+	}
+
+	// Yoast SEO detection
+	if (window.yoast || window.YoastSEO) {
+		result.plugins.push('Yoast SEO');
+	}
+
+	// Jetpack detection
+	if (window.Jetpack) {
+		result.plugins.push('Jetpack');
+	}
+
+	// Shopify detection
+	var shopifyDetected = false;
+	if (window.Shopify) {
+		shopifyDetected = true;
+	}
+	var shopifyScripts = document.querySelectorAll('script[src*="cdn.shopify.com"], script[src*="shopify"]');
+	if (shopifyScripts.length > 0) {
+		shopifyDetected = true;
+	}
+	if (shopifyDetected && !result.cms.some(function(c) { return c.name === 'Shopify'; })) {
+		result.cms.push({ name: 'Shopify', plugins: [] });
+	}
+
+	// Drupal detection
+	var drupalDetected = false;
+	if (window.Drupal) {
+		drupalDetected = true;
+	}
+	var drupalSettings = document.querySelector('script[data-drupal-selector]');
+	if (drupalSettings) {
+		drupalDetected = true;
+	}
+	if (/\bDrupal\b/.test(html)) {
+		drupalDetected = true;
+	}
+	if (drupalDetected && !result.cms.some(function(c) { return c.name === 'Drupal'; })) {
+		result.cms.push({ name: 'Drupal', plugins: [] });
+	}
+
+	// Joomla detection
+	if (window.Joomla) {
+		if (!result.cms.some(function(c) { return c.name === 'Joomla'; })) {
+			result.cms.push({ name: 'Joomla', plugins: [] });
+		}
+	}
+
+	// Webflow detection
+	var webflowDetected = false;
+	if (window.Webflow) {
+		webflowDetected = true;
+	}
+	var webflowScripts = document.querySelectorAll('script[src*="webflow"]');
+	if (webflowScripts.length > 0) {
+		webflowDetected = true;
+	}
+	if (/\bwf-\w+\b/.test(html)) {
+		webflowDetected = true;
+	}
+	if (webflowDetected && !result.cms.some(function(c) { return c.name === 'Webflow'; })) {
+		result.cms.push({ name: 'Webflow', plugins: [] });
+	}
+
+	// Squarespace detection
+	if (window.Squarespace) {
+		if (!result.cms.some(function(c) { return c.name === 'Squarespace'; })) {
+			result.cms.push({ name: 'Squarespace', plugins: [] });
+		}
+	}
+
+	// Wix detection
+	if (window.wixBiSession || window.wixPerformanceMeasurements) {
+		if (!result.cms.some(function(c) { return c.name === 'Wix'; })) {
+			result.cms.push({ name: 'Wix', plugins: [] });
+		}
+	}
+
+	// Deduplicate arrays
+	var seen = {};
+	result.frameworks = result.frameworks.filter(function(item) {
+		return seen.hasOwnProperty(item) ? false : (seen[item] = true);
+	});
+	seen = {};
+	result.css = result.css.filter(function(item) {
+		return seen.hasOwnProperty(item) ? false : (seen[item] = true);
+	});
+	seen = {};
+	result.build = result.build.filter(function(item) {
+		return seen.hasOwnProperty(item) ? false : (seen[item] = true);
+	});
+	seen = {};
+	result.plugins = result.plugins.filter(function(item) {
+		return seen.hasOwnProperty(item) ? false : (seen[item] = true);
+	});
+
+	// Calculate confidence based on signals count
+	var totalSignals = result.frameworks.length + result.css.length + result.build.length + result.cms.length + result.plugins.length;
+	result.confidence.overall = Math.min(100, totalSignals * 15);
+
+	return result;
 }
 
 if (
@@ -1586,15 +1692,27 @@ case "SCROLL_TO":
                   sendResponse({ success: true });
                   break;
 
-              case "RESET_ALL_OVERLAYS":
-                  if (inspectActive) stopInspectMode();
-                  if (rulersActive) disableRulersOverlay();
-                  if (measureMode) toggleMeasureMode(false);
-                  removeHighlight();
-                  clearMeasurementOverlay();
-                  clearMeasureHighlights();
-                  sendResponse({ success: true });
-                  break;
+case "RESET_ALL_OVERLAYS":
+      if (inspectActive) stopInspectMode();
+      if (rulersActive) disableRulersOverlay();
+      if (measureMode) toggleMeasureMode(false);
+      removeHighlight();
+      clearMeasurementOverlay();
+      clearMeasureHighlights();
+      if (floatingPanelEl) destroyFloatingPanel();
+      sendResponse({ success: true });
+      break;
+
+case "CREATE_FLOATING_PANEL":
+        if (DEBUG) console.log('[Code Peek] CREATE_FLOATING_PANEL received');
+        createFloatingPanel(msg.payload);
+        sendResponse({ success: true });
+        break;
+
+    case "CLOSE_FLOATING_PANEL":
+      if (floatingPanelEl) destroyFloatingPanel();
+      sendResponse({ success: true });
+      break;
                 
 case "GET_TECH_STACK":
           sendResponse({
@@ -1622,18 +1740,16 @@ case "GET_TECH_STACK":
                break;
               case "CLEAR_RULERS_GUIDES":
                 rulers.forEach(function(r) {
-                  if (r.element.parentNode) r.element.parentNode.removeChild(r.element);
-                });
-                rulers = [];
-                
-                if (typeof chrome !== 'undefined' && chrome.runtime && chrome.runtime.sendMessage) {
-                  chrome.runtime.sendMessage({ type: 'RULERS_CLEARED' });
-                }
-                
-                sendResponse({ success: true });
-                break;
-              
-               case "REMOVE_RULER":
+    if (r.element.parentNode) r.element.parentNode.removeChild(r.element);
+  });
+  rulers = [];
+
+  safeSendMessage({ type: 'RULERS_CLEARED' });
+
+  sendResponse({ success: true });
+  break;
+
+case "REMOVE_RULER":
                  var id = msg.payload.id;
                  var idx = rulers.findIndex(function(r) { return r.id === id; });
                  if (idx !== -1) {
@@ -1644,11 +1760,49 @@ case "GET_TECH_STACK":
                  sendResponse({ success: true });
                  break;
 
-              case "TOGGLE_MEASURE_MODE":
-                toggleMeasureMode(!!msg.payload.enabled);
-                sendResponse({ success: true });
-                break;
-              default:
+case "TOGGLE_MEASURE_MODE":
+toggleMeasureMode(!!msg.payload.enabled);
+sendResponse({ success: true });
+break;
+case "HIGHLIGHT_ELEMENT":
+var highlightSelector = msg.selector;
+var highlightTag = msg.tag;
+var highlightEl = null;
+if (highlightSelector) {
+try {
+highlightEl = document.querySelector(highlightSelector);
+} catch (e) {}
+}
+if (!highlightEl && highlightTag) {
+var candidates = document.querySelectorAll(highlightTag);
+for (var hi = 0; hi < candidates.length; hi++) {
+var c = candidates[hi];
+var cStyle = window.getComputedStyle(c);
+var cBg = cStyle.backgroundColor;
+if (cBg && cBg !== 'transparent' && cBg !== 'rgba(0, 0, 0, 0)') {
+highlightEl = c;
+break;
+}
+}
+}
+if (highlightEl) {
+var rect = highlightEl.getBoundingClientRect();
+var existingHighlight = document.getElementById('code-peek-contrast-highlight');
+if (existingHighlight) existingHighlight.remove();
+var highlightDiv = document.createElement('div');
+highlightDiv.id = 'code-peek-contrast-highlight';
+highlightDiv.style.cssText = 'position: fixed; top: ' + rect.top + 'px; left: ' + rect.left + 'px; width: ' + rect.width + 'px; height: ' + rect.height + 'px; border: 2px solid #ff0000; background: rgba(255, 0, 0, 0.1); pointer-events: none; z-index: 2147483647; box-sizing: border-box;';
+document.body.appendChild(highlightDiv);
+highlightEl.scrollIntoView({ behavior: 'smooth', block: 'center' });
+}
+sendResponse({ success: true });
+break;
+case "CLEAR_HIGHLIGHT":
+var highlightToRemove = document.getElementById('code-peek-contrast-highlight');
+if (highlightToRemove) highlightToRemove.remove();
+sendResponse({ success: true });
+break;
+default:
                sendResponse({ success: false, error: "Unknown type" });
         }
       } catch (e) {
@@ -1702,18 +1856,21 @@ case "GET_TECH_STACK":
     var faviconEl = document.querySelector('link[rel="icon"]') || document.querySelector('link[rel="shortcut icon"]');
     if (faviconEl) meta.favicon = toAbsoluteUrl(faviconEl.getAttribute("href") || "");
 
-    // Open Graph tags
-    var ogTags = document.querySelectorAll('meta[property^="og:"]');
-    for (var i = 0; i < ogTags.length; i++) {
-      var prop = ogTags[i].getAttribute("property");
-      var content = ogTags[i].getAttribute("content") || "";
-      if (prop) {
-        var key = prop.replace(/^og:/, "").toLowerCase();
-        meta.og[key] = (key === "image" || key === "url")
-          ? toAbsoluteUrl(content)
-          : content;
+// Open Graph tags
+  var ogTags = document.querySelectorAll('meta[property^="og:"]');
+  for (var i = 0; i < ogTags.length; i++) {
+    var prop = ogTags[i].getAttribute("property");
+    var content = ogTags[i].getAttribute("content") || "";
+    if (prop) {
+      var key = prop.replace(/^og:/, "").toLowerCase();
+      // Handle og:image, og:image:url, og:image:secure_url as 'image'
+      if (key === "image" || key === "image:url" || key === "image:secure_url") {
+        if (content) meta.og.image = toAbsoluteUrl(content);
+      } else {
+        meta.og[key] = (key === "url") ? toAbsoluteUrl(content) : content;
       }
     }
+  }
 
     // Twitter Card tags
     var twitterTags = document.querySelectorAll('meta[name^="twitter:"]');
@@ -1777,21 +1934,19 @@ var justDragged = false;
      if (rulersOverlay && rulersOverlay.parentNode) {
        rulersOverlay.parentNode.removeChild(rulersOverlay);
      }
-     if (rulersTooltip && rulersTooltip.parentNode) {
-       rulersTooltip.parentNode.removeChild(rulersTooltip);
-     }
-     rulers.forEach(function(r) {
-       if (r.element.parentNode) r.element.parentNode.removeChild(r.element);
-     });
-     rulers = [];
-     
-     if (typeof chrome !== 'undefined' && chrome.runtime && chrome.runtime.sendMessage) {
-       chrome.runtime.sendMessage({ type: 'RULERS_CLEARED' });
-     }
-     
-     document.removeEventListener('mousemove', onRulersMouseMove, true);
-     document.removeEventListener('click', onRulersClick, true);
-     document.removeEventListener('keydown', onRulersKeyDown, true);
+  if (rulersTooltip && rulersTooltip.parentNode) {
+    rulersTooltip.parentNode.removeChild(rulersTooltip);
+  }
+  rulers.forEach(function(r) {
+    if (r.element.parentNode) r.element.parentNode.removeChild(r.element);
+  });
+  rulers = [];
+
+  safeSendMessage({ type: 'RULERS_CLEARED' });
+
+  document.removeEventListener('mousemove', onRulersMouseMove, true);
+  document.removeEventListener('click', onRulersClick, true);
+  document.removeEventListener('keydown', onRulersKeyDown, true);
      if (DEBUG) console.log('Code Peek: Rulers overlay disabled');
    }
 
@@ -1916,38 +2071,34 @@ var justDragged = false;
      
      var id = nextRulerId++;
      guide.dataset.rulerId = id;
-     
-     var rulerObj = { id: id, type: isHorizontal ? 'horizontal' : 'vertical', position: isHorizontal ? e.clientY : e.clientX, element: guide };
-     rulers.push(rulerObj);
-     
-     guide.addEventListener('mousedown', function(ev) { onRulerMouseDown(ev, rulerObj); });
-     
-     document.body.appendChild(guide);
-     
-     if (typeof chrome !== 'undefined' && chrome.runtime && chrome.runtime.sendMessage) {
-       chrome.runtime.sendMessage({
-         type: 'RULER_ADDED',
-         payload: { id: id, type: rulerObj.type, position: rulerObj.position }
-       });
-     }
-   }
 
-   function onRulersKeyDown(e) {
-     if (e.key === 'Escape' || e.key === 'c' || e.key === 'C') {
-       rulers.forEach(function(r) {
-         if (r.element.parentNode) r.element.parentNode.removeChild(r.element);
-       });
-       rulers = [];
-       
-       if (typeof chrome !== 'undefined' && chrome.runtime && chrome.runtime.sendMessage) {
-         chrome.runtime.sendMessage({ type: 'RULERS_CLEARED' });
-       }
-       
-       if (DEBUG) console.log('Code Peek: All guides cleared');
-     }
-    }
+  var rulerObj = { id: id, type: isHorizontal ? 'horizontal' : 'vertical', position: isHorizontal ? e.clientY : e.clientX, element: guide };
+  rulers.push(rulerObj);
 
-   function onRulerMouseDown(e, ruler) {
+  guide.addEventListener('mousedown', function(ev) { onRulerMouseDown(ev, rulerObj); });
+
+  document.body.appendChild(guide);
+
+  safeSendMessage({
+    type: 'RULER_ADDED',
+    payload: { id: id, type: rulerObj.type, position: rulerObj.position }
+  });
+}
+
+function onRulersKeyDown(e) {
+  if (e.key === 'Escape' || e.key === 'c' || e.key === 'C') {
+    rulers.forEach(function(r) {
+      if (r.element.parentNode) r.element.parentNode.removeChild(r.element);
+    });
+    rulers = [];
+
+    safeSendMessage({ type: 'RULERS_CLEARED' });
+
+    if (DEBUG) console.log('Code Peek: All guides cleared');
+  }
+}
+
+function onRulerMouseDown(e, ruler) {
      if (e.button !== 0) return;
      e.stopPropagation();
      e.preventDefault();
@@ -1965,26 +2116,24 @@ var justDragged = false;
      var dx = e.clientX - dragStartX;
      var dy = e.clientY - dragStartY;
      var newPos = dragRuler.type === 'vertical' ? dragStartPos + dx : dragStartPos + dy;
-     var el = dragRuler.element;
-     if (dragRuler.type === 'vertical') {
-       el.style.left = newPos + 'px';
-     } else {
-       el.style.top = newPos + 'px';
-     }
-     dragRuler.position = newPos;
-   }
+  var el = dragRuler.element;
+  if (dragRuler.type === 'vertical') {
+    el.style.left = newPos + 'px';
+  } else {
+    el.style.top = newPos + 'px';
+  }
+  dragRuler.position = newPos;
+}
 
-    function onRulerMouseUp(e) {
-      if (!dragRuler) return;
-      // Mark that a drag just occurred to suppress the subsequent click event
-      justDragged = true;
-      if (typeof chrome !== 'undefined' && chrome.runtime && chrome.runtime.sendMessage) {
-        chrome.runtime.sendMessage({
-          type: 'RULER_UPDATED',
-          payload: { id: dragRuler.id, position: dragRuler.position }
-        });
-      }
-      dragRuler = null;
+function onRulerMouseUp(e) {
+  if (!dragRuler) return;
+  // Mark that a drag just occurred to suppress the subsequent click event
+  justDragged = true;
+  safeSendMessage({
+    type: 'RULER_UPDATED',
+    payload: { id: dragRuler.id, position: dragRuler.position }
+  });
+  dragRuler = null;
       window.removeEventListener('mousemove', onRulerMouseMove);
       window.removeEventListener('mouseup', onRulerMouseUp);
     }
@@ -2127,26 +2276,270 @@ var justDragged = false;
         if (!el || el === document.body) return;
 
         if (!measureStartEl) {
-          measureStartEl = el;
-          showHighlightFixed(el, '#f59e0b');
-        } else {
-          var endEl = el;
-          var r1 = measureStartEl.getBoundingClientRect();
-          var r2 = endEl.getBoundingClientRect();
-          var result = computeRectDistance(r1, r2);
-          // Highlight second element as well
-          showHighlightFixed(endEl, '#f59e0b');
-          drawMeasurementLine(result.p1.x, result.p1.y, result.p2.x, result.p2.y, result.distance);
-          if (typeof chrome !== 'undefined' && chrome.runtime && chrome.runtime.sendMessage) {
-            chrome.runtime.sendMessage({
-              type: 'MEASUREMENT_COMPLETE',
-              payload: { distance: Math.round(result.distance) }
-            });
-          }
-          // Reset start for next measurement while staying in measure mode
-          measureStartEl = null;
-        }
-      }
+    measureStartEl = el;
+    showHighlightFixed(el, '#f59e0b');
+  } else {
+    var endEl = el;
+    var r1 = measureStartEl.getBoundingClientRect();
+    var r2 = endEl.getBoundingClientRect();
+    var result = computeRectDistance(r1, r2);
+    // Highlight second element as well
+    showHighlightFixed(endEl, '#f59e0b');
+    drawMeasurementLine(result.p1.x, result.p1.y, result.p2.x, result.p2.y, result.distance);
+    safeSendMessage({
+      type: 'MEASUREMENT_COMPLETE',
+      payload: { distance: Math.round(result.distance) }
+    });
+    // Reset start for next measurement while staying in measure mode
+    measureStartEl = null;
+  }
+}
 
-    if (DEBUG) console.log("Code Peek content script ready");
-  })();
+// === FLOATING PANEL ===
+var floatingPanelEl = null;
+var floatingIframe = null;
+var floatingDragState = {
+  isDragging: false,
+  isResizing: false,
+  resizeEdge: null,
+  offsetX: 0,
+  offsetY: 0,
+  startWidth: 0,
+  startHeight: 0,
+  startLeft: 0,
+  startTop: 0
+};
+
+function createFloatingPanel(config) {
+  if (floatingPanelEl) {
+    if (DEBUG) console.log('[Code Peek] Floating panel already exists');
+    return;
+  }
+
+  if (DEBUG) console.log('[Code Peek] Creating floating panel with config:', config);
+
+  var top = config.position ? config.position.top : 16;
+  var right = config.position ? config.position.right : 16;
+  var width = config.size ? config.size.width : 400;
+  var height = config.size ? config.size.height : 500;
+
+  // Save floating panel state to storage
+  safeSendMessage({
+    type: 'SAVE_FLOATING_STATE',
+    payload: {
+      active: true,
+      position: { top: top, right: right },
+      size: { width: width, height: height }
+    }
+  });
+
+  // Create panel container
+  var panel = document.createElement('div');
+  panel.id = 'code-peek-floating-panel';
+  panel.style.cssText = 'position:fixed;top:' + top + 'px;right:' + right + 'px;width:' + width + 'px;height:' + height + 'px;z-index:2147483647;display:flex;flex-direction:column;background:#000;border:1px solid #222;border-radius:8px;overflow:hidden;box-shadow:0 8px 32px rgba(0,0,0,0.5);';
+
+  // Create header for dragging
+  var header = document.createElement('div');
+  header.id = 'cp-floating-header';
+  header.style.cssText = 'flex-shrink:0;height:48px;background:#000;border-bottom:1px solid #222;display:flex;align-items:center;justify-content:space-between;padding:0 12px;cursor:move;user-select:none;';
+  header.innerHTML = '<div style="display:flex;align-items:center;gap:8px;"><span style="font-family:\'Space Mono\',monospace;font-size:12px;font-weight:700;color:#fff;letter-spacing:-0.5px;">CODE PEEK</span></div><div style="display:flex;gap:4px;"><button id="cp-float-close" title="Close" style="background:transparent;border:none;color:#999;cursor:pointer;padding:6px;border-radius:4px;display:flex;align-items:center;justify-content:center;"><svg width="16" height="16" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2"><path d="M6 18L18 6M6 6l12 12"/></svg></button></div>';
+
+  panel.appendChild(header);
+
+// Create iframe to load sidepanel content
+  var iframe = document.createElement('iframe');
+  iframe.id = 'cp-floating-iframe';
+  iframe.style.cssText = 'flex:1;border:none;width:100%;height:100%;background:#000;';
+
+  // Load the sidepanel HTML
+  // File is at src/sidepanel/index.html
+  // Pass floating mode via postMessage instead of query string
+  iframe.src = chrome.runtime.getURL('src/sidepanel/index.html');
+
+  panel.appendChild(iframe);
+
+  // Create edge resize handles (full sides, invisible, cursor indicates resize)
+  // Right edge (full height, excluding header for better UX)
+  var edgeRight = document.createElement('div');
+  edgeRight.className = 'cp-float-resize-edge';
+  edgeRight.dataset.edge = 'right';
+  edgeRight.dataset.corner = 'bottom-right';
+  edgeRight.style.cssText = 'position:absolute;right:0;top:48px;bottom:0;width:6px;cursor:ew-resize;z-index:10;';
+  panel.appendChild(edgeRight);
+
+  // Bottom edge (full width)
+  var edgeBottom = document.createElement('div');
+  edgeBottom.className = 'cp-float-resize-edge';
+  edgeBottom.dataset.edge = 'bottom';
+  edgeBottom.dataset.corner = 'bottom-right';
+  edgeBottom.style.cssText = 'position:absolute;bottom:0;left:0;right:0;height:6px;cursor:ns-resize;z-index:10;';
+  panel.appendChild(edgeBottom);
+
+  // Left edge (full height, excluding header for better UX)
+  var edgeLeft = document.createElement('div');
+  edgeLeft.className = 'cp-float-resize-edge';
+  edgeLeft.dataset.edge = 'left';
+  edgeLeft.dataset.corner = 'bottom-left';
+  edgeLeft.style.cssText = 'position:absolute;left:0;top:48px;bottom:0;width:6px;cursor:ew-resize;z-index:10;';
+  panel.appendChild(edgeLeft);
+
+  // Top edge (full width excluding header drag area - header handles top drag)
+  var edgeTop = document.createElement('div');
+  edgeTop.className = 'cp-float-resize-edge';
+  edgeTop.dataset.edge = 'top';
+  edgeTop.style.cssText = 'position:absolute;top:0;left:0;right:0;height:6px;cursor:ns-resize;z-index:10;';
+  panel.appendChild(edgeTop);
+
+  // Add hover styles via CSS injection
+  var resizeStyle = document.createElement('style');
+  resizeStyle.textContent = '.cp-float-resize:hover svg{opacity:0.7!important;}';
+  document.head.appendChild(resizeStyle);
+
+  document.body.appendChild(panel);
+  floatingPanelEl = panel;
+  floatingIframe = iframe;
+
+  // Drag events on header
+  header.addEventListener('mousedown', function(e) {
+    if (e.target.closest('button')) return;
+    floatingDragState.isDragging = true;
+    floatingDragState.offsetX = e.clientX - panel.offsetLeft;
+    floatingDragState.offsetY = e.clientY - panel.offsetTop;
+    e.preventDefault();
+  });
+
+  // Resize events for edges
+  var edgeHandles = panel.querySelectorAll('.cp-float-resize-edge');
+  edgeHandles.forEach(function(handle) {
+    handle.addEventListener('mousedown', function(e) {
+      floatingDragState.isResizing = true;
+      floatingDragState.resizeEdge = handle.dataset.edge;
+      floatingDragState.startWidth = panel.offsetWidth;
+      floatingDragState.startHeight = panel.offsetHeight;
+      floatingDragState.startLeft = panel.offsetLeft;
+      floatingDragState.startTop = panel.offsetTop;
+      e.preventDefault();
+    });
+  });
+
+  // Button events
+  document.getElementById('cp-float-close').addEventListener('click', function() {
+    destroyFloatingPanel();
+  });
+
+  document.addEventListener('mousemove', onFloatingMouseMove);
+  document.addEventListener('mouseup', onFloatingMouseUp);
+}
+
+function showReturnToSidebarToast() {
+  // Check if toast already exists
+  if (document.getElementById('cp-sidebar-toast')) return;
+  
+  var toast = document.createElement('div');
+  toast.id = 'cp-sidebar-toast';
+  toast.style.cssText = 'position:fixed;bottom:20px;right:20px;background:#1f2937;color:#fff;padding:12px 20px;border-radius:8px;font-family:system-ui,sans-serif;font-size:14px;z-index:2147483647;box-shadow:0 4px 12px rgba(0,0,0,0.3);animation:slideIn 0.3s ease;';
+  toast.innerHTML = 'Click the <strong>Code Peek</strong> extension icon to reopen the sidebar';
+  
+  // Add animation keyframes
+  var style = document.createElement('style');
+  style.textContent = '@keyframes slideIn{from{transform:translateX(100%);opacity:0}to{transform:translateX(0);opacity:1}}';
+  document.head.appendChild(style);
+  
+  document.body.appendChild(toast);
+  
+  // Auto-remove after 5 seconds
+  setTimeout(function() {
+    if (toast.parentNode) {
+      toast.style.animation = 'slideIn 0.3s ease reverse';
+      setTimeout(function() { toast.remove(); }, 300);
+    }
+  }, 5000);
+}
+
+function onFloatingMouseMove(e) {
+  if (!floatingPanelEl) return;
+
+  if (floatingDragState.isDragging) {
+    var newLeft = e.clientX - floatingDragState.offsetX;
+    var newTop = e.clientY - floatingDragState.offsetY;
+
+    newLeft = Math.max(0, Math.min(newLeft, window.innerWidth - floatingPanelEl.offsetWidth));
+    newTop = Math.max(0, Math.min(newTop, window.innerHeight - floatingPanelEl.offsetHeight));
+
+    floatingPanelEl.style.left = newLeft + 'px';
+    floatingPanelEl.style.top = newTop + 'px';
+    floatingPanelEl.style.right = 'auto';
+  }
+
+if (floatingDragState.isResizing) {
+    var rect = floatingPanelEl.getBoundingClientRect();
+
+    // Edge resizing
+    if (floatingDragState.resizeEdge === 'right') {
+      var newWidth = Math.max(320, Math.min(e.clientX - rect.left, 800));
+      floatingPanelEl.style.width = newWidth + 'px';
+    } else if (floatingDragState.resizeEdge === 'bottom') {
+      var newHeight = Math.max(400, Math.min(e.clientY - rect.top, window.innerHeight * 0.9));
+      floatingPanelEl.style.height = newHeight + 'px';
+    } else if (floatingDragState.resizeEdge === 'left') {
+      var newWidth = Math.max(320, Math.min(rect.right - e.clientX, 800));
+      var newLeft = rect.right - newWidth;
+      floatingPanelEl.style.width = newWidth + 'px';
+      floatingPanelEl.style.left = newLeft + 'px';
+      floatingPanelEl.style.right = 'auto';
+    } else if (floatingDragState.resizeEdge === 'top') {
+      var newHeight = Math.max(400, Math.min(rect.bottom - e.clientY, window.innerHeight * 0.9));
+      var newTop = rect.bottom - newHeight;
+      floatingPanelEl.style.height = newHeight + 'px';
+      floatingPanelEl.style.top = newTop + 'px';
+    }
+  }
+}
+
+function onFloatingMouseUp(e) {
+  floatingDragState.isDragging = false;
+  floatingDragState.isResizing = false;
+  floatingDragState.resizeEdge = null;
+}
+
+function destroyFloatingPanel() {
+  if (floatingPanelEl) {
+    floatingPanelEl.remove();
+    floatingPanelEl = null;
+    floatingIframe = null;
+  }
+  document.removeEventListener('mousemove', onFloatingMouseMove);
+  document.removeEventListener('mouseup', onFloatingMouseUp);
+  
+  // Clear floating panel state from storage
+  safeSendMessage({ type: 'CLEAR_FLOATING_STATE' });
+}
+
+// Handle postMessage from iframe (e.g., RETURN_TO_SIDEBAR)
+window.addEventListener('message', function(e) {
+  if (e.data && e.data.type === 'RETURN_TO_SIDEBAR') {
+    if (DEBUG) console.log('[Code Peek] RETURN_TO_SIDEBAR message received');
+    destroyFloatingPanel();
+  }
+});
+
+// Restore floating panel if it was active before navigation
+function restoreFloatingPanelIfActive() {
+  if (floatingPanelEl) return; // Already exists
+  
+  safeSendMessage({ type: 'GET_FLOATING_STATE' }, function(response) {
+    if (response && response.success && response.data && response.data.active) {
+      if (DEBUG) console.log('[Code Peek] Restoring floating panel');
+      createFloatingPanel({
+        position: response.data.position || { top: 16, right: 16 },
+        size: response.data.size || { width: 400, height: 500 }
+      });
+    }
+  });
+}
+
+// Try to restore after a short delay (let page settle)
+setTimeout(restoreFloatingPanelIfActive, 100);
+
+if (DEBUG) console.log("Code Peek content script ready");
+})();

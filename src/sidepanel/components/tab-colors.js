@@ -7,20 +7,22 @@ var colorsTab = {
   },
 
   colorToHex: function (color) {
+    var parsed, rgb, r, g, b, hexR, hexG, hexB, raw, rgbMatch;
+
     if (!color || typeof color !== "string") return null;
 
     if (this.isCuloriAvailable()) {
       try {
-        var parsed = culori.parse(color);
+        parsed = culori.parse(color);
         if (parsed) {
-          var rgb = culori.rgb(parsed);
+          rgb = culori.rgb(parsed);
           if (rgb && typeof rgb.r === "number" && typeof rgb.g === "number" && typeof rgb.b === "number") {
-            var r = Math.round(rgb.r * 255);
-            var g = Math.round(rgb.g * 255);
-            var b = Math.round(rgb.b * 255);
-            var hexR = r.toString(16);
-            var hexG = g.toString(16);
-            var hexB = b.toString(16);
+            r = Math.round(rgb.r * 255);
+            g = Math.round(rgb.g * 255);
+            b = Math.round(rgb.b * 255);
+            hexR = r.toString(16);
+            hexG = g.toString(16);
+            hexB = b.toString(16);
             if (hexR.length < 2) hexR = "0" + hexR;
             if (hexG.length < 2) hexG = "0" + hexG;
             if (hexB.length < 2) hexB = "0" + hexB;
@@ -30,7 +32,7 @@ var colorsTab = {
       } catch (e) {}
     }
 
-    var raw = color.trim();
+    raw = color.trim();
     if (raw.startsWith("#")) {
       if (raw.length === 4) {
         return "#" + raw[1] + raw[1] + raw[2] + raw[2] + raw[3] + raw[3];
@@ -38,14 +40,14 @@ var colorsTab = {
       return raw.toLowerCase();
     }
 
-    var rgbMatch = raw.match(/rgba?\(\s*(\d+)\s*,\s*(\d+)\s*,\s*(\d+)/);
+    rgbMatch = raw.match(/rgba?\(\s*(\d+)\s*,\s*(\d+)\s*,\s*(\d+)/);
     if (rgbMatch) {
-      var r = parseInt(rgbMatch[1], 10);
-      var g = parseInt(rgbMatch[2], 10);
-      var b = parseInt(rgbMatch[3], 10);
-      var hexR = r.toString(16);
-      var hexG = g.toString(16);
-      var hexB = b.toString(16);
+      r = parseInt(rgbMatch[1], 10);
+      g = parseInt(rgbMatch[2], 10);
+      b = parseInt(rgbMatch[3], 10);
+      hexR = r.toString(16);
+      hexG = g.toString(16);
+      hexB = b.toString(16);
       if (hexR.length < 2) hexR = "0" + hexR;
       if (hexG.length < 2) hexG = "0" + hexG;
       if (hexB.length < 2) hexB = "0" + hexB;
@@ -56,9 +58,10 @@ var colorsTab = {
   },
 
   normalizeColor: function (color) {
+    var raw, hex;
     if (!color) return { hex: null, display: "unknown", raw: color };
-    var raw = color.trim();
-    var hex = this.colorToHex(color);
+    raw = color.trim();
+    hex = this.colorToHex(color);
     if (hex) {
       return { hex: hex, display: hex, raw: raw };
     }
@@ -67,47 +70,44 @@ var colorsTab = {
 
   render: function (data) {
     var self = this;
-    var container = document.getElementById("tab-colors");
+    var container = document.getElementById("colors-content");
+    var html, swatches, colorSwatches, cs;
+
     if (!container) {
       console.error("[Colors Tab] No container found");
       return;
     }
 
-    if (!document.getElementById("colors-subtab-container")) {
-      var html = '<div class="tab-content">';
+    html = '<div class="tab-content">';
 
-      // Page Header
-      html += '<div class="page-header">';
-      html += '<div class="page-title">COLORS</div>';
-      html += '<div class="page-subtitle">Palette Analysis</div>';
-      html += "</div>";
+    // Page Header
+    html += '<div class="page-header">';
+    html += '<div class="page-title">COLORS</div>';
+    html += '<div class="page-subtitle">Palette Analysis</div>';
+    html += "</div>";
 
-      // Subtabs
-      html += '<div id="colors-subtab-container">';
-      html += '<div class="subtabs">';
-      html += '<button class="subtab-btn active" data-subtab="all">ALL</button>';
-      html += '<button class="subtab-btn" data-subtab="categories">CATEGORIES</button>';
-      html += "</div>";
-      html += '<div id="colors-subtab-all"><div id="colors-grid"></div></div>';
-      html += '<div id="colors-subtab-categories" class="hidden"><div id="color-categories"></div></div>';
-      html += "</div>";
+    // Subtabs
+    html += '<div id="colors-subtab-container">';
+    html += '<div class="subtabs">';
+    html += '<button class="subtab-btn active" data-subtab="all">ALL</button>';
+    html += '<button class="subtab-btn" data-subtab="categories">CATEGORIES</button>';
+    html += "</div>";
+    html += '<div id="colors-subtab-all"><div id="colors-grid"></div></div>';
+    html += '<div id="colors-subtab-categories" class="hidden"><div id="color-categories"></div></div>';
+    html += "</div>";
 
-      // Palette Generator
-      html += '<div id="color-harmonies" class="harmonies-section"></div>';
+    html += '</div>';
+    container.innerHTML = html;
 
-      html += "</div>";
-      container.innerHTML = html;
-
-      document.querySelectorAll(".subtab-btn").forEach(function (btn) {
-        btn.onclick = function () {
-          document.querySelectorAll(".subtab-btn").forEach(function (b) {
-            b.classList.remove("active");
-          });
-          this.classList.add("active");
-          if (typeof CodePeekApp !== "undefined") CodePeekApp.switchColorSubtab(this.dataset.subtab);
-        };
-      });
-    }
+    document.querySelectorAll(".subtab-btn").forEach(function (btn) {
+      btn.onclick = function () {
+        document.querySelectorAll(".subtab-btn").forEach(function (b) {
+          b.classList.remove("active");
+        });
+        this.classList.add("active");
+        if (typeof CodePeekApp !== "undefined") CodePeekApp.switchColorSubtab(this.dataset.subtab);
+      };
+    });
 
     try {
       this.renderAll(data.colors || []);
@@ -117,57 +117,92 @@ var colorsTab = {
     }
 
     setTimeout(function () {
-      var swatches = document.querySelectorAll("#colors-grid [data-color]");
+      swatches = document.querySelectorAll("#colors-grid [data-color]");
       swatches.forEach(function (swatch) {
         swatch.onclick = function () {
-          var hex = this.getAttribute("data-color");
           swatches.forEach(function (s) {
             s.classList.remove("selected");
           });
           this.classList.add("selected");
-          self.selectedColor = hex;
-          try {
-            self.renderHarmonies(hex);
-          } catch (e) {
-            console.error("[Colors Tab] Error rendering harmonies:", e);
-          }
         };
       });
+
+      colorSwatches = document.querySelectorAll(".color-swatch-large");
+      for (cs = 0; cs < colorSwatches.length; cs++) {
+        colorSwatches[cs].addEventListener("keydown", function(e) {
+          if (e.key === "Enter" || e.key === " ") {
+            e.preventDefault();
+            this.click();
+          }
+        });
+      }
     }, 50);
   },
 
   renderAll: function (colors) {
+    var self = this;
     var grid = document.getElementById("colors-grid");
+    var uniqueColors, seenHexes, i, rawColor, colorObj, dedupKey, rgb, html;
+    var bgColor, displayValue, hexElements, h, paletteBtns, p;
+
     if (!grid) return;
 
     if (!colors || colors.length === 0) {
-      grid.innerHTML = '<div class="empty-label">NO COLORS FOUND</div>';
+      var emptyHtml = '<div class="empty-state-enhanced">';
+      emptyHtml += '<div class="empty-state-title">NO COLORS FOUND</div>';
+      emptyHtml += '<div class="empty-state-reason">This page might use:</div>';
+      emptyHtml += '<ul class="empty-state-list">';
+      emptyHtml += '<li>CSS-in-JS (styled-components, emotion)</li>';
+      emptyHtml += '<li>Inline styles on elements</li>';
+      emptyHtml += '<li>External stylesheets not yet loaded</li>';
+      emptyHtml += '</ul>';
+      emptyHtml += '<div class="empty-state-action">Try inspecting a specific element using the element picker.</div>';
+      emptyHtml += '</div>';
+      grid.innerHTML = emptyHtml;
       return;
     }
 
-    var uniqueColors = [];
-    var seenHexes = {};
-    for (var i = 0; i < colors.length; i++) {
-      var rawColor = colors[i].color;
-      var colorObj = this.normalizeColor(rawColor);
-      var dedupKey = colorObj.hex || colorObj.display;
+    uniqueColors = [];
+    seenHexes = {};
+    for (i = 0; i < colors.length; i++) {
+      rawColor = colors[i].color;
+      colorObj = this.normalizeColor(rawColor);
+      dedupKey = colorObj.hex || colorObj.display;
       if (seenHexes[dedupKey]) continue;
       seenHexes[dedupKey] = true;
+
+      // Calculate luminance for sorting
+      if (colorObj.hex) {
+        rgb = this.hexToRgb(colorObj.hex);
+        if (rgb) {
+          colorObj.luminance = 0.299 * rgb.r + 0.587 * rgb.g + 0.114 * rgb.b;
+        } else {
+          colorObj.luminance = 128;
+        }
+      } else {
+        colorObj.luminance = 128;
+      }
+
       uniqueColors.push(colorObj);
     }
 
-    var html = '<div class="color-grid-full">';
-    for (var i = 0; i < uniqueColors.length; i++) {
-      var colorObj = uniqueColors[i];
-      var bgColor = colorObj.hex || colorObj.raw;
-      var displayValue = colorObj.display;
+    // Sort by luminance (dark to light)
+    uniqueColors.sort(function(a, b) {
+      return a.luminance - b.luminance;
+    });
 
-      html += '<div class="color-item" data-color="' + bgColor + '">';
-      html += '<div class="color-swatch-large" style="background-color:' + bgColor + '"></div>';
-      html += '<div class="color-info">';
-      html += '<span class="color-hex">' + displayValue + "</span>";
-      html += '<button class="copy-btn" data-hex="' + bgColor + '" title="Copy">';
-      html += '<svg class="copy-icon" viewBox="0 0 24 24"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path></svg>';
+    html = '<div class="color-grid-full">';
+    for (i = 0; i < uniqueColors.length; i++) {
+      colorObj = uniqueColors[i];
+      bgColor = colorObj.hex || colorObj.raw;
+      displayValue = colorObj.display;
+
+      html += '<div class="color-card" data-color="' + bgColor + '">';
+      html += '<div class="color-card-swatch" style="background-color:' + bgColor + '" role="button" tabindex="0" aria-label="Color ' + displayValue + '"></div>';
+      html += '<div class="color-card-info">';
+      html += '<span class="color-card-hex" data-hex="' + bgColor + '" title="Click to copy">' + displayValue + "</span>";
+      html += '<button class="palette-btn" data-hex="' + bgColor + '" title="Generate Palette" aria-label="Generate palette for ' + displayValue + '">';
+      html += '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="12" cy="12" r="3"/><path d="M12 2v4m0 12v4M2 12h4m12 0h4"/><path d="M4.93 4.93l2.83 2.83m8.48 8.48l2.83 2.83M4.93 19.07l2.83-2.83m8.48-8.48l2.83-2.83"/></svg>';
       html += "</button>";
       html += "</div>";
       html += "</div>";
@@ -176,66 +211,179 @@ var colorsTab = {
     grid.innerHTML = html;
 
     setTimeout(function () {
-      var copyBtns = grid.querySelectorAll(".copy-btn");
-      for (var j = 0; j < copyBtns.length; j++) {
-        copyBtns[j].onclick = function (e) {
+      hexElements = grid.querySelectorAll(".color-card-hex");
+      for (h = 0; h < hexElements.length; h++) {
+        hexElements[h].onclick = function (e) {
           e.stopPropagation();
-          var hex = this.getAttribute("data-hex");
-          if (navigator.clipboard && navigator.clipboard.writeText) {
-            navigator.clipboard.writeText(hex);
-          } else {
-            var textarea = document.createElement("textarea");
-            textarea.value = hex;
-            textarea.style.position = "fixed";
-            textarea.style.opacity = "0";
-            document.body.appendChild(textarea);
-            textarea.select();
-            document.execCommand("copy");
-            document.body.removeChild(textarea);
-          }
-          this.classList.add("copied");
-          var btn = this;
-          setTimeout(function () {
-            btn.classList.remove("copied");
-          }, 1500);
+          self.copyToClipboard(this.getAttribute("data-hex"), this);
+        };
+      }
+
+      paletteBtns = grid.querySelectorAll(".palette-btn");
+      for (p = 0; p < paletteBtns.length; p++) {
+        paletteBtns[p].onclick = function (e) {
+          e.stopPropagation();
+          self.openPaletteModal(this.getAttribute("data-hex"));
         };
       }
     }, 50);
   },
 
+  copyToClipboard: function(text, element) {
+    var self = this;
+    var textarea;
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      navigator.clipboard.writeText(text).then(function() {
+        self.showCopyFeedback(element);
+      });
+    } else {
+      textarea = document.createElement("textarea");
+      textarea.value = text;
+      textarea.style.position = "fixed";
+      textarea.style.opacity = "0";
+      document.body.appendChild(textarea);
+      textarea.select();
+      document.execCommand("copy");
+      document.body.removeChild(textarea);
+      self.showCopyFeedback(element);
+    }
+  },
+
+  showCopyFeedback: function(element) {
+    element.classList.add("copied");
+    if (typeof CodePeekApp !== "undefined" && CodePeekApp.showToast) {
+      CodePeekApp.showToast("Copied!", 1500);
+    }
+    setTimeout(function() {
+      element.classList.remove("copied");
+    }, 1500);
+  },
+
+  openPaletteModal: function(hex) {
+    var self = this;
+    var schemes, content, modal, modalEl, copyBtns, i;
+
+    if (typeof createModal === "undefined") {
+      console.error("[Colors Tab] Modal component not available");
+      return;
+    }
+
+    schemes = this.generateHarmonies(hex);
+    content = '<div class="palette-modal-content">';
+
+    // Original color display
+    content += '<div class="palette-original">';
+    content += '<div class="palette-original-swatch" style="background-color:' + hex + '"></div>';
+    content += '<div class="palette-original-info">';
+    content += '<div class="palette-original-hex">' + hex + '</div>';
+    content += '</div>';
+    content += '</div>';
+
+    // Color schemes
+    content += '<div class="palette-schemes">';
+
+    if (schemes.isGrayscale) {
+      if (schemes.tints && schemes.tints.length > 0) {
+        content += this.renderPaletteSchemeModal("TINTS", schemes.tints);
+      }
+      if (schemes.shades && schemes.shades.length > 0) {
+        content += this.renderPaletteSchemeModal("SHADES", schemes.shades);
+      }
+    } else {
+      content += this.renderPaletteSchemeModal("COMPLEMENTARY", [schemes.original, schemes.complementary]);
+      content += this.renderPaletteSchemeModal("ANALOGOUS", schemes.analogous);
+      content += this.renderPaletteSchemeModal("TRIADIC", schemes.triadic);
+      content += this.renderPaletteSchemeModal("TETRADIC", schemes.tetradic);
+    }
+
+    content += '</div>';
+    content += '</div>';
+
+    modal = createModal({
+      title: 'PALETTE GENERATOR',
+      content: content,
+      width: '32rem'
+    });
+
+    modal.show();
+
+    // Add click handlers for copy buttons in modal
+    setTimeout(function() {
+      modalEl = document.querySelector('.modal-content');
+      if (!modalEl) return;
+
+      copyBtns = modalEl.querySelectorAll('.copy-btn');
+      for (i = 0; i < copyBtns.length; i++) {
+        copyBtns[i].onclick = function() {
+          var hexVal = this.getAttribute("data-hex");
+          if (navigator.clipboard) {
+            navigator.clipboard.writeText(hexVal);
+          }
+          this.classList.add("copied");
+          if (typeof CodePeekApp !== "undefined" && CodePeekApp.showToast) {
+            CodePeekApp.showToast("Copied!", 1500);
+          }
+          var btn = this;
+          setTimeout(function() {
+            btn.classList.remove("copied");
+          }, 1500);
+        };
+      }
+    }, 100);
+  },
+
+  renderPaletteSchemeModal: function(title, colorsArr) {
+    var html = '<div class="palette-scheme">';
+    html += '<div class="palette-scheme-label">' + title + '</div>';
+    html += '<div class="palette-scheme-colors">';
+    colorsArr.forEach(function(c) {
+      html += '<div class="palette-scheme-color">';
+      html += '<div class="palette-scheme-swatch" style="background-color:' + c + '"></div>';
+      html += '<div class="palette-scheme-info">';
+      html += '<span class="palette-scheme-hex">' + c + '</span>';
+      html += '<button class="copy-btn" data-hex="' + c + '" title="Copy">';
+      html += '<svg class="copy-icon" viewBox="0 0 24 24"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path></svg>';
+      html += '</button>';
+      html += '</div>';
+      html += '</div>';
+    });
+    html += '</div>';
+    html += '</div>';
+    return html;
+  },
+
   generateHarmonies: function (hex) {
     var rgb = this.hexToRgb(hex);
+    var hsl, h, s, l, isGrayscale, tints, shades, i;
+    var clamp = function(x) { return Math.max(0, Math.min(360, x)); };
+
     if (!rgb) return {};
-    var hsl = this.rgbToHsl(rgb.r, rgb.g, rgb.b);
-    var h = hsl.h,
-      s = hsl.s,
-      l = hsl.l;
-    var isGrayscale = s < 10;
+    hsl = this.rgbToHsl(rgb.r, rgb.g, rgb.b);
+    h = hsl.h;
+    s = hsl.s;
+    l = hsl.l;
+    isGrayscale = s < 10;
 
     if (isGrayscale) {
-      var tints = [];
-      var shades = [];
+      tints = [];
+      shades = [];
       if (l < 20) {
-        for (var i = 1; i <= 5; i++) {
+        for (i = 1; i <= 5; i++) {
           tints.push(this.hslToHex(h, s, Math.min(100, l + i * 15)));
         }
         return { original: hex, isGrayscale: true, tints: tints, shades: [] };
       } else if (l > 80) {
-        for (var i = 1; i <= 5; i++) {
+        for (i = 1; i <= 5; i++) {
           shades.push(this.hslToHex(h, s, Math.max(0, l - i * 15)));
         }
         return { original: hex, isGrayscale: true, tints: [], shades: shades };
       } else {
-        for (var i = 1; i <= 5; i++) {
+        for (i = 1; i <= 5; i++) {
           tints.push(this.hslToHex(h, s, Math.min(100, l + i * 12)));
           shades.push(this.hslToHex(h, s, Math.max(0, l - i * 12)));
         }
         return { original: hex, isGrayscale: true, tints: tints, shades: shades };
       }
-    }
-
-    function clamp(x) {
-      return Math.max(0, Math.min(360, x));
     }
 
     return {
@@ -250,9 +398,11 @@ var colorsTab = {
 
   renderHarmonies: function (hex) {
     var container = document.getElementById("color-harmonies");
+    var schemes, html, copyBtns, i;
+
     if (!container) return;
-    var schemes = this.generateHarmonies(hex);
-    var html = '<div class="section-label">PALETTE GENERATOR</div>';
+    schemes = this.generateHarmonies(hex);
+    html = '<div class="section-label">PALETTE GENERATOR</div>';
     html += '<div class="harmonies-grid">';
 
     if (schemes.isGrayscale) {
@@ -269,8 +419,8 @@ var colorsTab = {
     container.innerHTML = html;
 
     setTimeout(function () {
-      var copyBtns = container.querySelectorAll(".copy-btn");
-      for (var i = 0; i < copyBtns.length; i++) {
+      copyBtns = container.querySelectorAll(".copy-btn");
+      for (i = 0; i < copyBtns.length; i++) {
         copyBtns[i].onclick = function () {
           var hexVal = this.getAttribute("data-hex");
           if (navigator.clipboard) {
@@ -280,7 +430,7 @@ var colorsTab = {
           var btn = this;
           setTimeout(function () {
             btn.classList.remove("copied");
-          }, 1500);
+          }, 2500);
         };
       }
     }, 50);
@@ -317,18 +467,17 @@ var colorsTab = {
   },
 
   rgbToHsl: function (r, g, b) {
+    var max, min, h, s, l, d;
     r /= 255;
     g /= 255;
     b /= 255;
-    var max = Math.max(r, g, b),
-      min = Math.min(r, g, b);
-    var h,
-      s,
-      l = (max + min) / 2;
+    max = Math.max(r, g, b);
+    min = Math.min(r, g, b);
+    l = (max + min) / 2;
     if (max === min) {
       h = s = 0;
     } else {
-      var d = max - min;
+      d = max - min;
       s = l > 0.5 ? d / (2 - max - min) : d / (max + min);
       switch (max) {
         case r:
@@ -347,14 +496,15 @@ var colorsTab = {
   },
 
   hslToHex: function (h, s, l) {
+    var c, x, m, r, g, b, hexR, hexG, hexB;
     s /= 100;
     l /= 100;
-    var c = (1 - Math.abs(2 * l - 1)) * s;
-    var x = c * (1 - Math.abs((h / 60) % 2 - 1));
-    var m = l - c / 2;
-    var r = 0,
-      g = 0,
-      b = 0;
+    c = (1 - Math.abs(2 * l - 1)) * s;
+    x = c * (1 - Math.abs((h / 60) % 2 - 1));
+    m = l - c / 2;
+    r = 0;
+    g = 0;
+    b = 0;
     if (0 <= h && h < 60) {
       r = c;
       g = x;
@@ -380,9 +530,9 @@ var colorsTab = {
       g = 0;
       b = x;
     }
-    var hexR = Math.round((r + m) * 255).toString(16);
-    var hexG = Math.round((g + m) * 255).toString(16);
-    var hexB = Math.round((b + m) * 255).toString(16);
+    hexR = Math.round((r + m) * 255).toString(16);
+    hexG = Math.round((g + m) * 255).toString(16);
+    hexB = Math.round((b + m) * 255).toString(16);
     if (hexR.length < 2) hexR = "0" + hexR;
     if (hexG.length < 2) hexG = "0" + hexG;
     if (hexB.length < 2) hexB = "0" + hexB;
@@ -390,35 +540,52 @@ var colorsTab = {
   },
 
   renderCategories: function (colors) {
+    var self = this;
     var container = document.getElementById("color-categories");
+    var brands, grays, seenHexes, i, rawColor, c, dedupKey, bgColor, rgb, luminance, html, bi, bItem, gi, gItem;
+    var hexElements, h, paletteBtns, p;
+
     if (!container) return;
 
-    var brands = [];
-    var grays = [];
-    var seenHexes = {};
+    brands = [];
+    grays = [];
+    seenHexes = {};
 
-    for (var i = 0; i < colors.length; i++) {
-      var rawColor = colors[i].color;
-      var c = this.normalizeColor(rawColor);
+    for (i = 0; i < colors.length; i++) {
+      rawColor = colors[i].color;
+      c = this.normalizeColor(rawColor);
       if (!c || !c.display) continue;
-      var dedupKey = c.hex || c.display;
+      dedupKey = c.hex || c.display;
       if (seenHexes[dedupKey]) continue;
       seenHexes[dedupKey] = true;
-      var bgColor = c.hex || c.raw;
-      if (this.isGray(bgColor)) grays.push({ raw: bgColor, hex: c.display });
-      else brands.push({ raw: bgColor, hex: c.display });
+      bgColor = c.hex || c.raw;
+      rgb = this.hexToRgb(bgColor);
+      luminance = rgb ? (0.299 * rgb.r + 0.587 * rgb.g + 0.114 * rgb.b) : 128;
+      if (this.isGray(bgColor)) {
+        grays.push({ raw: bgColor, hex: c.display, luminance: luminance });
+      } else {
+        brands.push({ raw: bgColor, hex: c.display, luminance: luminance });
+      }
     }
 
-    var html = '<div class="categories-section">';
+    brands.sort(function(a, b) { return a.luminance - b.luminance; });
+    grays.sort(function(a, b) { return a.luminance - b.luminance; });
+
+    html = '<div class="categories-section">';
 
     html += '<div class="category-group">';
     html += '<div class="section-label">BRAND COLORS</div>';
-    html += '<div class="category-grid">';
-    for (var i = 0; i < brands.length; i++) {
-      var item = brands[i];
-      html += '<div class="category-item">';
-      html += '<div class="category-swatch" style="background-color:' + item.raw + '"></div>';
-      html += '<div class="category-hex">' + item.hex + "</div>";
+    html += '<div class="color-grid-full">';
+    for (bi = 0; bi < brands.length; bi++) {
+      bItem = brands[bi];
+      html += '<div class="color-card">';
+      html += '<div class="color-card-swatch" style="background-color:' + bItem.raw + '"></div>';
+      html += '<div class="color-card-info">';
+      html += '<span class="color-card-hex" data-hex="' + bItem.raw + '" title="Click to copy">' + bItem.hex + "</span>";
+      html += '<button class="palette-btn" data-hex="' + bItem.raw + '" title="Generate Palette" aria-label="Generate palette for ' + bItem.hex + '">';
+      html += '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="12" cy="12" r="3"/><path d="M12 2v4m0 12v4M2 12h4m12 0h4"/><path d="M4.93 4.93l2.83 2.83m8.48 8.48l2.83 2.83M4.93 19.07l2.83-2.83m8.48-8.48l2.83-2.83"/></svg>';
+      html += "</button>";
+      html += "</div>";
       html += "</div>";
     }
     if (brands.length === 0) html += '<div class="empty-label">NONE DETECTED</div>';
@@ -426,12 +593,17 @@ var colorsTab = {
 
     html += '<div class="category-group">';
     html += '<div class="section-label">NEUTRALS</div>';
-    html += '<div class="category-grid">';
-    for (var i = 0; i < grays.length; i++) {
-      var item = grays[i];
-      html += '<div class="category-item">';
-      html += '<div class="category-swatch" style="background-color:' + item.raw + '"></div>';
-      html += '<div class="category-hex">' + item.hex + "</div>";
+    html += '<div class="color-grid-full">';
+    for (gi = 0; gi < grays.length; gi++) {
+      gItem = grays[gi];
+      html += '<div class="color-card">';
+      html += '<div class="color-card-swatch" style="background-color:' + gItem.raw + '"></div>';
+      html += '<div class="color-card-info">';
+      html += '<span class="color-card-hex" data-hex="' + gItem.raw + '" title="Click to copy">' + gItem.hex + "</span>";
+      html += '<button class="palette-btn" data-hex="' + gItem.raw + '" title="Generate Palette" aria-label="Generate palette for ' + gItem.hex + '">';
+      html += '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="12" cy="12" r="3"/><path d="M12 2v4m0 12v4M2 12h4m12 0h4"/><path d="M4.93 4.93l2.83 2.83m8.48 8.48l2.83 2.83M4.93 19.07l2.83-2.83m8.48-8.48l2.83-2.83"/></svg>';
+      html += "</button>";
+      html += "</div>";
       html += "</div>";
     }
     if (grays.length === 0) html += '<div class="empty-label">NONE DETECTED</div>';
@@ -439,10 +611,28 @@ var colorsTab = {
 
     html += "</div>";
     container.innerHTML = html;
+
+    setTimeout(function () {
+      hexElements = container.querySelectorAll(".color-card-hex");
+      for (h = 0; h < hexElements.length; h++) {
+        hexElements[h].onclick = function (e) {
+          e.stopPropagation();
+          self.copyToClipboard(this.getAttribute("data-hex"), this);
+        };
+      }
+
+      paletteBtns = container.querySelectorAll(".palette-btn");
+      for (p = 0; p < paletteBtns.length; p++) {
+        paletteBtns[p].onclick = function (e) {
+          e.stopPropagation();
+          self.openPaletteModal(this.getAttribute("data-hex"));
+        };
+      }
+    }, 50);
   },
 
   isGray: function (color) {
-    var rgb, match, diff;
+    var rgb, match, diff, r, g, b;
     if (color.startsWith("#")) {
       rgb = this.hexToRgb(color);
       if (rgb) {
@@ -452,9 +642,9 @@ var colorsTab = {
     }
     match = color.match(/rgba?\((\d+),\s*(\d+),\s*(\d+)/);
     if (match) {
-      var r = parseInt(match[1]);
-      var g = parseInt(match[2]);
-      var b = parseInt(match[3]);
+      r = parseInt(match[1]);
+      g = parseInt(match[2]);
+      b = parseInt(match[3]);
       diff = Math.max(r, g, b) - Math.min(r, g, b);
       return diff < 20;
     }

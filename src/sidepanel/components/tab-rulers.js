@@ -15,24 +15,17 @@ var rulersTab = {
     if (!container) return;
     var self = this;
 
-    var html = '<div class="rulers-tab">';
+    var html = '<div class="tab-content">';
 
-    // Page Header - Nothing style
+    // Page Header
     html += '<div class="page-header">';
-    html += '<div class="section-indicator"></div>';
-    html += '<div class="header-text">';
-    html += '<h1 class="page-title">Rulers</h1>';
-    html += '<p class="page-subtitle">Measurement Tools</p>';
-    html += '</div>';
+    html += '<div class="page-title">RULERS</div>';
+    html += '<div class="page-subtitle">Measurement Tools</div>';
     html += '</div>';
 
     // Tools Section
-    html += '<section class="tools-section">';
-    html += '<div class="section-header">';
-    html += '<div class="section-indicator"></div>';
-    html += '<span class="section-label">TOOLS</span>';
-    html += '<button id="rulers-help-btn" class="help-btn" title="How to use rulers" aria-label="Help">?</button>';
-    html += '</div>';
+    html += '<section class="section">';
+    html += '<div class="section-label">TOOLS</div>';
 
     // Tool 1: Ruler Overlay
     html += '<div class="tool-row">';
@@ -69,11 +62,8 @@ var rulersTab = {
     html += '</section>';
 
     // Settings Section
-    html += '<section class="settings-section">';
-    html += '<div class="section-header">';
-    html += '<div class="section-indicator"></div>';
-    html += '<span class="section-label">SETTINGS</span>';
-    html += '</div>';
+    html += '<section class="section">';
+    html += '<div class="section-label">SETTINGS</div>';
 
     // Unit selector
     html += '<div class="setting-row">';

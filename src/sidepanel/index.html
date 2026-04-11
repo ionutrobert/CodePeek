@@ -11,35 +11,20 @@
   <link href="styles/main.css" rel="stylesheet">
 </head>
 <body>
-  <div id="app" class="flex flex-col" style="min-height: 100vh;" role="application" aria-label="Code Peek CSS Inspector">
+<a href="#main-content" class="skip-link">Skip to main content</a>
+<div id="app" class="flex flex-col panel-container" style="min-height: 100vh;" role="application" aria-label="Code Peek CSS Inspector">
 
-    <!-- Header — Nothing Design -->
-    <header class="flex items-center justify-between" style="padding: var(--space-md); border-bottom: 1px solid var(--border); background-color: var(--black);" role="banner">
+  <!-- Header — Nothing Design -->
+  <header role="banner">
+    <!-- Top Row: Logo + Actions -->
+    <div class="header-top-row">
       <!-- Logo — Pure Typography -->
-      <div class="flex items-center gap-md">
-        <h1 class="text-display-md" style="font-weight: 700; letter-spacing: -0.03em; color: var(--text-display);">CODE PEEK</h1>
-      </div>
-
-      <!-- Mode Toggle — Segmented Control -->
-      <div class="segmented-control" role="tablist" aria-label="Mode selection">
-        <button class="segment active" id="mode-option-design" data-mode="designer" role="tab" aria-selected="true" aria-controls="tab-content">
-          DESIGN
-        </button>
-        <button class="segment" id="mode-option-dev" data-mode="developer" role="tab" aria-selected="false" aria-controls="tab-content">
-          DEV
-        </button>
+      <div class="header-logo">
+        <h1>CODE PEEK</h1>
       </div>
 
       <!-- Header Actions -->
-      <div class="flex items-center gap-sm">
-        <!-- Inspect Toggle -->
-        <button id="inspect-toggle" class="btn-icon" type="button" title="Toggle Inspect Mode" aria-label="Toggle inspect mode" aria-pressed="false">
-          <svg width="20" height="20" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="1.5">
-            <circle cx="12" cy="12" r="3"/>
-            <path d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"/>
-          </svg>
-        </button>
-
+      <div class="header-actions">
         <!-- Menu Toggle -->
         <button id="menu-toggle" class="btn-icon" type="button" title="Menu" aria-label="Open menu" aria-haspopup="true">
           <svg width="20" height="20" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="1.5">
@@ -49,41 +34,83 @@
           </svg>
         </button>
 
+        <!-- Float Toggle -->
+        <button id="float-toggle" class="btn-icon" type="button" title="Toggle floating panel" aria-label="Toggle floating panel mode" aria-pressed="false">
+          <svg width="20" height="20" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="1.5" id="float-icon-sidebar">
+            <rect x="3" y="3" width="7" height="18" rx="1"/>
+            <rect x="14" y="3" width="7" height="18" rx="1"/>
+          </svg>
+          <svg width="20" height="20" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="1.5" id="float-icon-floating" class="hidden">
+            <rect x="4" y="4" width="16" height="16" rx="2"/>
+            <path d="M4 8h16M8 4v16" stroke-dasharray="2 2"/>
+          </svg>
+        </button>
+
+        <!-- Return to Sidebar (only visible in floating mode) -->
+        <button id="return-to-sidebar" class="btn-icon hidden" type="button" title="Return to sidebar" aria-label="Return to sidebar mode">
+          <svg width="20" height="20" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="1.5">
+            <rect x="3" y="3" width="7" height="18" rx="1"/>
+            <path d="M14 3h7v18h-7"/>
+          </svg>
+        </button>
+
         <!-- Close -->
         <button id="close-sidepanel" class="btn-icon" type="button" title="Close" aria-label="Close panel">
           <svg width="20" height="20" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="1.5">
             <path d="M6 18L18 6M6 6l12 12"/>
           </svg>
         </button>
-      </div>
-    </header>
 
-    <!-- Utility Menu (Hidden) -->
-    <div id="utility-menu" class="hidden" style="position: absolute; right: var(--space-md); top: 60px; z-index: 50; background-color: var(--surface); border: 1px solid var(--border-visible); border-radius: var(--radius-lg); padding: var(--space-sm); min-width: 200px;">
-      <!-- Dark Mode Toggle -->
-      <div class="flex items-center justify-between" style="padding: var(--space-sm) var(--space-md);">
-        <span class="text-label">Dark Mode</span>
-        <div class="toggle-track active" id="dark-mode-track" role="switch" aria-checked="true" aria-label="Dark mode" tabindex="0">
-          <div class="toggle-thumb" id="dark-mode-thumb"></div>
+        <!-- Utility Menu -->
+        <div id="utility-menu" class="hidden">
+          <!-- Dark Mode Toggle -->
+          <div class="utility-menu-row">
+            <span class="text-label">DARK MODE</span>
+            <div class="toggle-track active" id="dark-mode-track" role="switch" aria-checked="true" aria-label="Dark mode" tabindex="0">
+              <div class="toggle-thumb" id="dark-mode-thumb"></div>
+            </div>
+          </div>
+
+          <div class="menu-divider"></div>
+
+          <!-- Menu Items -->
+          <button id="shortcuts-btn" type="button" class="btn-ghost">SHORTCUTS</button>
+          <button id="show-tips-btn" type="button" class="btn-ghost">SHOW TIPS</button>
+
+          <div class="menu-divider"></div>
+
+          <button id="screenshot-btn" type="button" class="btn-ghost">SCREENSHOT</button>
+          <button id="reload-extension-btn" type="button" class="btn-ghost">RELOAD</button>
+          <button id="export-all-btn" type="button" class="btn-ghost" title="Export colors and typography as JSON">EXPORT</button>
         </div>
       </div>
-      
-      <div style="height: 1px; background-color: var(--border); margin: var(--space-xs) 0;"></div>
-      
-      <!-- Menu Items -->
-      <button id="screenshot-btn" type="button" class="btn-ghost" style="width: 100%; justify-content: flex-start; text-align: left;">
-        SCREENSHOT
-      </button>
-      <button id="reload-extension-btn" type="button" class="btn-ghost" style="width: 100%; justify-content: flex-start; text-align: left;">
-        RELOAD
-      </button>
-      <button id="export-all-btn" type="button" class="btn-ghost" style="width: 100%; justify-content: flex-start; text-align: left;">
-        EXPORT
-      </button>
     </div>
 
-    <!-- Main Content -->
-    <main class="flex-1" style="overflow-y: auto; padding-bottom: 60px;" role="main">
+    <!-- Bottom Row: Inspector + Mode Toggle -->
+    <div class="header-bottom-row">
+      <!-- Inspect Toggle with Label -->
+      <button id="inspect-toggle" class="header-inspect-btn" type="button" title="Toggle Inspect Mode - Click element on page to inspect" aria-label="Toggle inspect mode" aria-pressed="false">
+        <svg width="16" height="16" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="1.5">
+          <circle cx="12" cy="12" r="3"/>
+          <path d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"/>
+        </svg>
+        <span>INSPECT</span>
+      </button>
+
+      <!-- Mode Toggle — Segmented Control -->
+      <div class="segmented-control" role="tablist" aria-label="Mode selection">
+        <button type="button" class="segment active" id="mode-option-design" data-mode="designer" role="tab" aria-selected="true" aria-controls="tab-content">
+          DESIGN
+        </button>
+        <button type="button" class="segment" id="mode-option-dev" data-mode="developer" role="tab" aria-selected="false" aria-controls="tab-content">
+          DEV
+        </button>
+      </div>
+    </div>
+  </header>
+
+<!-- Main Content -->
+<main id="main-content" class="flex-1" style="overflow-y: auto; padding-bottom: 56px;" role="main" tabindex="-1">
       <!-- Overview Tab -->
       <div id="tab-overview" class="tab-content" role="tabpanel" aria-labelledby="tab-overview-btn">
         <div class="space-y-lg">
@@ -95,8 +122,10 @@
         </div>
       </div>
 
-      <!-- Colors Tab -->
-      <div id="tab-colors" class="tab-content hidden" role="tabpanel" aria-labelledby="tab-colors-btn"></div>
+<!-- Colors Tab -->
+<div id="tab-colors" class="tab-content hidden" role="tabpanel" aria-labelledby="tab-colors-btn">
+<div id="colors-content"></div>
+</div>
 
       <!-- Typography Tab -->
       <div id="tab-typography" class="tab-content hidden" role="tabpanel" aria-labelledby="tab-typography-btn">
@@ -139,13 +168,15 @@
       <div id="tab-bar" class="flex items-center justify-around w-full"></div>
     </nav>
 
-    <!-- Scripts -->
-    <script src="culori.min.js"></script>
-    <script src="utils/messaging.js?v=2"></script>
-    <script src="utils/og-preview-data.js?v=2"></script>
-    <script src="components/modal-component.js?v=2"></script>
-    <script src="components/og-preview-modal.js?v=2"></script>
-    <script src="components/brand-guide-modal.js?v=2"></script>
-    <script src="app.js?v=2"></script>
-  </body>
+  <!-- Scripts -->
+  <script src="culori.min.js"></script>
+  <script src="utils/messaging.js?v=2"></script>
+  <script src="utils/og-preview-data.js?v=2"></script>
+  <script src="components/modal-component.js?v=2"></script>
+  <script src="components/og-preview-modal.js?v=2"></script>
+  <script src="components/brand-guide-modal.js?v=2"></script>
+  <script src="components/shortcuts-modal.js?v=2"></script>
+<script src="app.js?v=2"></script>
+<script src="floating-mode.js"></script>
+</body>
 </html>

@@ -1,3 +1,16 @@
+// OG Preview image error handler utility
+function handleOgImageError(img) {
+  img.style.display = 'none';
+  var parent = img.parentElement;
+  if (parent) {
+    var placeholder = document.createElement('div');
+    placeholder.className = 'og-image-placeholder';
+    placeholder.style.cssText = 'width: 100%; height: 100%; display: flex; align-items: center; justify-content: center; font-family: var(--font-mono); font-size: var(--caption); color: var(--text-secondary);';
+    placeholder.textContent = 'IMAGE UNAVAILABLE';
+    parent.appendChild(placeholder);
+  }
+}
+
 // Overview Tab - Nothing Design System
 function formatBytes(bytes) {
   if (bytes === 0) return "0 B";
@@ -8,12 +21,12 @@ function formatBytes(bytes) {
 }
 
 var overviewTab = {
-  load: function () {
-    var self = this;
-    var container = document.getElementById("tab-overview");
-    if (container) {
-      container.innerHTML = '<div class="loading-state"><div class="loading-spinner"></div><div class="loading-label">SCANNING</div></div>';
-    }
+load: function () {
+var self = this;
+var container = document.getElementById("tab-overview");
+if (container) {
+container.innerHTML = '<div class="loading-state"><div class="loading-spinner"></div><div class="loading-label">SCANNING</div><div class="loading-hint">Analyzing page design system...</div></div>';
+}
 
     messaging.extractAll(function (response) {
       if (response && response.success && response.data) {
@@ -29,20 +42,71 @@ var overviewTab = {
     var container = document.getElementById("tab-overview");
     if (!container) return;
 
+    console.log('[DEBUG] renderStats received data:', JSON.stringify(data, null, 2));
+
     if (!data) {
       container.innerHTML = '<div class="loading-state"><div class="loading-spinner"></div><div class="loading-label">LOADING</div></div>';
       return;
     }
 
-    var html = '<div class="tab-content">';
+var html = '<div class="tab-content">';
 
-    // Page Title (Primary Layer)
-    html += '<div class="overview-hero">';
-    html += '<div class="hero-title">' + self.escapeHtml(data.title || "UNTITLED") + '</div>';
-    html += '<div class="hero-host">' + self.escapeHtml(data.host || "unknown-host") + '</div>';
+  // First-time onboarding tip - guides users to most relevant action
+  var hasSeenOnboarding = localStorage.getItem('codepeek_onboarding_seen');
+  if (!hasSeenOnboarding) {
+    html += '<div class="onboarding-tip" id="onboarding-tip">';
+    html += '<div class="onboarding-content">';
+    html += '<div class="onboarding-icon">✦</div>';
+    html += '<div class="onboarding-text">';
+      html += '<strong>QUICK START</strong><br>';
+      html += 'Use the <span class="accent-text">inspect</span> tool to analyze specific elements, or browse tabs below.';
+      html += '<div class="onboarding-shortcuts">';
+      html += '<span class="onboarding-shortcut-item"><kbd>C</kbd> Colors</span>';
+      html += '<span class="onboarding-shortcut-item"><kbd>T</kbd> Type</span>';
+      html += '<span><kbd>A</kbd> Assets</span>';
+      html += '</div>';
     html += '</div>';
+    html += '</div>';
+    html += '<button class="onboarding-dismiss" id="dismiss-onboarding" aria-label="Dismiss">✕</button>';
+    html += '</div>';
+  }
 
-    // Typography Stats (Secondary Layer)
+  // Page Header - Tab Title
+  html += '<div class="page-header">';
+  html += '<div class="page-title">OVERVIEW</div>';
+  html += '<div class="page-subtitle">Page Analysis</div>';
+  html += '</div>';
+
+  // Page Info (secondary info)
+  html += '<div class="overview-page-info">';
+  html += '<div class="overview-page-title">' + self.escapeHtml(data.title || "UNTITLED") + '</div>';
+  html += '<div class="overview-page-host">' + self.escapeHtml(data.host || "unknown-host") + '</div>';
+  html += '</div>';
+
+ // OG Preview (if available) - moved before typography
+ var hasOgData = data.meta && data.meta.og && (data.meta.og.title || data.meta.og.description || data.meta.og.image);
+ if (hasOgData) {
+ var og = data.meta.og || {};
+ var ogImage = og.image || '';
+ html += '<div class="stat-section">';
+ html += '<div class="section-label">OG PREVIEW</div>';
+ html += '<div class="og-preview-trigger" id="og-preview-trigger">';
+ if (ogImage) {
+ html += '<div class="og-image-container">';
+ html += '<img src="' + self.escapeHtml(ogImage) + '" alt="OG Preview" loading="lazy" class="og-preview-img">';
+ html += '<div class="og-overlay-text">CLICK FOR DETAILS</div>';
+ html += '</div>';
+ } else {
+ html += '<div class="og-preview-card">';
+ html += '<div class="og-preview-card-text text-secondary">NO OG IMAGE</div>';
+ html += '<div class="og-preview-card-text-primary text-primary">CLICK FOR DETAILS</div>';
+ html += '</div>';
+ }
+ html += '</div>';
+ html += '</div>';
+ }
+
+ // Typography Stats (Secondary Layer)
     var fonts = data.typography || [];
     var headings = fonts.length > 0 ? fonts[0].family.split(",")[0].replace(/['"]/g, "") : "Not detected";
     var body = fonts.length > 1 ? fonts[1].family.split(",")[0].replace(/['"]/g, "") : headings;
@@ -66,59 +130,59 @@ var overviewTab = {
     if (colors.length === 0) {
       html += '<div class="empty-label">NO COLORS DETECTED</div>';
     }
-    html += '</div>';
-    '<button class="link-btn" id="overview-show-colors">SHOW ALL →</button>';
-    html += '</div>';
+html += '</div>';
+html += '<button class="link-btn" id="overview-show-colors">SHOW ALL →</button>';
+html += '</div>';
 
-    // Contrast Issues
-    var issueCount = (data.contrastIssues || []).length;
-    html += '<div class="stat-section">';
-    html += '<div class="section-label">CONTRAST</div>';
-    if (issueCount > 0) {
-      var worst = data.contrastIssues[0];
-      html += '<div class="contrast-hero">';
-      html += '<div class="contrast-ratio">' + worst.ratio.toFixed(2) + '</div>';
-      html += '<div class="contrast-unit">RATIO</div>';
-      html += '</div>';
-      html += '<div class="contrast-issues">';
-      for (var x = 0; x < Math.min(issueCount, 3); x++) {
-        var issue = data.contrastIssues[x];
-        html += '<div class="contrast-item">';
-        html += '<span class="contrast-selector">' + self.escapeHtml(issue.selector) + '</span>';
-        html += '<span class="contrast-value failing">' + issue.ratio.toFixed(2) + '</span>';
-        html += '</div>';
-      }
-      html += '<button class="link-btn" id="toggle-contrast-details">SEE ALL →</button>';
-      html += '</div>';
-      html += '<div id="contrast-details-list" class="contrast-details hidden">';
-      for (var y = 0; y < data.contrastIssues.length; y++) {
-        var issue = data.contrastIssues[y];
-        html += '<div class="contrast-detail-item">';
-        html += '<div class="contrast-detail-row">';
-        html += '<span class="contrast-detail-selector">' + self.escapeHtml(issue.selector) + '</span>';
-        html += '<div class="contrast-badges">';
-        html += '<span class="badge ' + (issue.aa ? "pass" : "fail") + '">AA</span>';
-        html += '<span class="badge ' + (issue.aaa ? "pass" : "fail") + '">AAA</span>';
-        html += '<span class="contrast-ratio-badge">' + issue.ratio.toFixed(2) + '</span>';
-        html += '</div>';
-        html += '</div>';
-        html += '<div class="contrast-colors">';
-        html += '<div class="contrast-color-preview" style="background-color:' + issue.fg + '"></div>';
-        html += '<span class="contrast-color-code">' + issue.fg + '</span>';
-        html += '<span class="contrast-on">on</span>';
-        html += '<div class="contrast-color-preview" style="background-color:' + issue.bg + '"></div>';
-        html += '<span class="contrast-color-code">' + issue.bg + '</span>';
-        html += '</div>';
-        html += '</div>';
-      }
-      html += '</div>';
-    } else {
-      html += '<div class="contrast-pass">';
-      html += '<div class="contrast-pass-icon">✓</div>';
-      html += '<div class="contrast-pass-text">ALL PASSING</div>';
-      html += '</div>';
-    }
-    html += '</div>';
+// Contrast Issues
+var issueCount = (data.contrastIssues || []).length;
+html += '<div class="stat-section">';
+html += '<div class="section-label">CONTRAST</div>';
+if (issueCount > 0) {
+var worst = data.contrastIssues[0];
+html += '<div class="contrast-hero">';
+html += '<div class="contrast-ratio">' + worst.ratio.toFixed(2) + '</div>';
+html += '<div class="contrast-unit">RATIO</div>';
+html += '</div>';
+html += '<div class="contrast-issues">';
+for (var x = 0; x < Math.min(issueCount, 3); x++) {
+var issue = data.contrastIssues[x];
+html += '<div class="contrast-item" data-selector="' + self.escapeHtml(issue.selector) + '" data-tag="' + self.escapeHtml(issue.tag) + '">';
+html += '<span class="contrast-selector">' + self.escapeHtml(issue.selector) + '</span>';
+html += '<span class="contrast-value failing">' + issue.ratio.toFixed(2) + '</span>';
+html += '</div>';
+}
+html += '<button class="link-btn" id="toggle-contrast-details">SEE ALL →</button>';
+html += '</div>';
+html += '<div id="contrast-details-list" class="contrast-details hidden">';
+for (var y = 0; y < data.contrastIssues.length; y++) {
+var issue = data.contrastIssues[y];
+html += '<div class="contrast-detail-item" data-selector="' + self.escapeHtml(issue.selector) + '" data-tag="' + self.escapeHtml(issue.tag) + '">';
+html += '<div class="contrast-detail-row">';
+html += '<span class="contrast-detail-selector">' + self.escapeHtml(issue.selector) + '</span>';
+html += '<div class="contrast-badges">';
+html += '<span class="badge ' + (issue.aa ? "pass" : "fail") + '">AA</span>';
+html += '<span class="badge ' + (issue.aaa ? "pass" : "fail") + '">AAA</span>';
+html += '<span class="contrast-ratio-badge">' + issue.ratio.toFixed(2) + '</span>';
+html += '</div>';
+html += '</div>';
+                html += '<div class="contrast-colors">';
+                  html += '<div class="contrast-color-preview" style="background-color:' + issue.fg + '" aria-label="Foreground color"></div>';
+                  html += '<span class="contrast-color-code">' + issue.fg + '</span>';
+                  html += '<span class="contrast-on">on</span>';
+                  html += '<div class="contrast-color-preview" style="background-color:' + issue.bg + '" aria-label="Background color"></div>';
+                  html += '<span class="contrast-color-code">' + issue.bg + '</span>';
+                  html += '</div>';
+ html += '</div>';
+ }
+ html += '</div>';
+ } else {
+ html += '<div class="contrast-pass">';
+ html += '<div class="contrast-pass-icon">✓</div>';
+ html += '<div class="contrast-pass-text">ALL PASSING</div>';
+ html += '</div>';
+ }
+ html += '</div>';
 
     // CSS Metrics
     var stats = [
@@ -137,30 +201,12 @@ var overviewTab = {
       html += '<div class="metric-label">' + stats[n].label + '</div>';
       html += '</div>';
     }
-    html += '</div>';
-    html += '</div>';
+ html += '</div>';
+ html += '</div>';
 
-    // OG Preview (if available)
-    var hasOgData = data.meta && data.meta.og && (data.meta.og.title || data.meta.og.description || data.meta.og.image);
-    if (hasOgData) {
-      var previewCards = self.getOgPreviewCards(data);
-      html += '<div class="stat-section">';
-      html += '<div class="section-label">OG PREVIEW</div>';
-      if (previewCards.length > 0) {
-        html += '<div class="og-preview-trigger" id="og-preview-trigger">';
-        html += '<div class="og-preview-card">';
-        html += '<div class="og-size">' + previewCards[0].size + '</div>';
-        html += '<div class="og-platforms">' + self.getPreviewPlatformNames(previewCards[0].platforms) + '</div>';
-        html += '</div>';
-        html += '<div class="og-hint">CLICK TO PREVIEW</div>';
-        html += '</div>';
-      }
-      html += '</div>';
-    }
+ html += '</div>';
 
-    html += '</div>';
-
-    container.innerHTML = html;
+ container.innerHTML = html;
 
     // OG Preview Modal trigger
     var ogTrigger = document.getElementById("og-preview-trigger");
@@ -172,24 +218,79 @@ var overviewTab = {
       };
     }
 
-    // Contrast details toggle
-    var contrastToggle = document.getElementById("toggle-contrast-details");
-    var contrastDetails = document.getElementById("contrast-details-list");
-    if (contrastToggle && contrastDetails) {
-      contrastToggle.onclick = function () {
-        contrastDetails.classList.toggle("hidden");
-        this.textContent = contrastDetails.classList.contains("hidden") ? "SEE ALL →" : "HIDE ↑";
+    // OG image error handling
+    var ogImages = document.querySelectorAll(".og-preview-img");
+    for (var ogi = 0; ogi < ogImages.length; ogi++) {
+      ogImages[ogi].onerror = function() {
+        this.style.display = 'none';
+        var container = this.closest(".og-image-container");
+        if (container) {
+          var placeholder = document.createElement("div");
+          placeholder.className = "og-image-placeholder";
+          placeholder.style.cssText = "width: 100%; height: 100%; display: flex; align-items: center; justify-content: center; font-family: var(--font-mono); font-size: var(--caption); color: var(--text-secondary);";
+          placeholder.textContent = "IMAGE UNAVAILABLE";
+          container.appendChild(placeholder);
+        }
       };
     }
 
-    // Show all colors
-    var showColorsBtn = document.getElementById("overview-show-colors");
-    if (showColorsBtn && typeof CodePeekApp !== "undefined") {
-      showColorsBtn.onclick = function () {
-        CodePeekApp.switchTab("colors");
-      };
-    }
-  },
+// Contrast details toggle
+var contrastToggle = document.getElementById("toggle-contrast-details");
+var contrastDetails = document.getElementById("contrast-details-list");
+if (contrastToggle && contrastDetails) {
+contrastToggle.onclick = function () {
+contrastDetails.classList.toggle("hidden");
+this.textContent = contrastDetails.classList.contains("hidden") ? "SEE ALL →" : "HIDE ↑";
+};
+}
+
+// Contrast item hover highlighting
+var contrastItems = document.querySelectorAll(".contrast-item, .contrast-detail-item");
+for (var ci = 0; ci < contrastItems.length; ci++) {
+contrastItems[ci].addEventListener("mouseenter", function() {
+var selector = this.getAttribute("data-selector");
+var tag = this.getAttribute("data-tag");
+if (selector && typeof chrome !== "undefined" && chrome.tabs) {
+chrome.tabs.query({ active: true, currentWindow: true }, function(tabs) {
+if (tabs[0]) {
+chrome.tabs.sendMessage(tabs[0].id, {
+type: "HIGHLIGHT_ELEMENT",
+selector: selector,
+tag: tag
+});
+}
+});
+}
+});
+contrastItems[ci].addEventListener("mouseleave", function() {
+if (typeof chrome !== "undefined" && chrome.tabs) {
+chrome.tabs.query({ active: true, currentWindow: true }, function(tabs) {
+if (tabs[0]) {
+chrome.tabs.sendMessage(tabs[0].id, { type: "CLEAR_HIGHLIGHT" });
+}
+});
+}
+});
+}
+
+// Show all colors
+var showColorsBtn = document.getElementById("overview-show-colors");
+if (showColorsBtn && typeof CodePeekApp !== "undefined") {
+showColorsBtn.onclick = function () {
+CodePeekApp.switchTab("colors");
+};
+}
+
+// Onboarding dismiss
+var onboardingTip = document.getElementById("onboarding-tip");
+var dismissBtn = document.getElementById("dismiss-onboarding");
+if (dismissBtn && onboardingTip) {
+dismissBtn.onclick = function () {
+localStorage.setItem('codepeek_onboarding_seen', 'true');
+onboardingTip.style.display = 'none';
+};
+}
+},
 
   renderError: function (msg) {
     var container = document.getElementById("tab-overview");

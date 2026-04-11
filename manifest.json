@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "Code Peek",
-  "version": "0.2.1",
+  "version": "0.5.0",
   "description": "Inspect CSS, colors, typography, and assets from any website",
   "permissions": [
     "activeTab",
@@ -19,20 +19,21 @@
   "background": {
     "service_worker": "src/background/service-worker.js"
   },
-   "content_scripts": [
-      {
-        "matches": [
-          "http://*/*",
-          "https://*/*",
-          "file://*/*"
-        ],
-        "js": [
-          "src/content/bundle.js"
-        ],
-        "run_at": "document_end",
-        "all_frames": false
-      }
+"content_scripts": [
+  {
+    "matches": [
+      "http://*/*",
+      "https://*/*",
+      "file://*/*"
     ],
+    "js": [
+      "src/content/tech-detector.js",
+      "src/content/index.js"
+    ],
+    "run_at": "document_end",
+    "all_frames": false
+  }
+],
   "side_panel": {
     "default_path": "src/sidepanel/index.html"
   },
@@ -51,6 +52,23 @@
     "48": "icons/icon-48.png",
     "128": "icons/icon-128.png"
   },
+"web_accessible_resources": [
+  {
+    "resources": [
+      "src/sidepanel/index.html",
+      "src/sidepanel/styles/main.css",
+      "src/sidepanel/app.js",
+      "src/sidepanel/floating-mode.js",
+      "src/sidepanel/utils/*.js",
+      "src/sidepanel/components/*.js",
+      "src/sidepanel/culori.min.js",
+      "test-extension.html"
+    ],
+    "matches": [
+      "<all_urls>"
+    ]
+  }
+],
   "commands": {
     "toggle-side-panel": {
       "suggested_key": {

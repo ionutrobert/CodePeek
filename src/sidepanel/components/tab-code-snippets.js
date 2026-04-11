@@ -9,22 +9,23 @@ var codeSnippetsTab = {
     var currentSelector = this.getCurrentSelector();
     var statusMessage = this.getStatusMessage(state, currentSelector, currentData);
 
-    var html = '<div class="code-snippets-tab">';
+    var html = '<div class="tab-content">';
 
     // Page Header
     html += '<div class="page-header">';
-    html += '<div class="section-indicator"></div>';
-    html += '<div class="header-text">';
-    html += '<h1 class="page-title">Code Snippets</h1>';
-    html += '<p class="page-subtitle">Element Export</p>';
+    html += '<div class="page-title">CODE</div>';
+    html += '<div class="page-subtitle">Element Export</div>';
     html += '</div>';
-    html += '<button id="code-select-btn" class="action-btn">' + (state.isSelecting ? 'Cancel' : 'Select') + '</button>';
+
+    // Action button row
+    html += '<div class="action-row">';
+    html += '<button id="code-select-btn" class="btn btn-secondary">' + (state.isSelecting ? 'Cancel' : 'Select Element') + '</button>';
     html += '</div>';
 
     // Status Bar
-    var statusClass = state.errorMessage ? 'status-error' : 'status-info';
-    html += '<div class="status-bar ' + statusClass + '">';
-    html += '<span class="status-label">' + (state.errorMessage ? 'Error' : 'Status') + '</span>';
+    var statusClass = state.errorMessage ? 'status-bar status-error' : 'status-bar status-info';
+    html += '<div class="' + statusClass + '">';
+    html += '<span class="status-label">' + (state.errorMessage ? 'ERROR' : 'STATUS') + '</span>';
     html += '<span class="status-text">' + this.escapeHtml(statusMessage) + '</span>';
     if (currentSelector) {
       html += '<span class="status-selector">' + this.escapeHtml(currentSelector) + '</span>';
@@ -32,28 +33,28 @@ var codeSnippetsTab = {
     html += '</div>';
 
     // Raw HTML Section
-    html += '<section class="code-section">';
-    html += '<div class="section-header-inline">';
-    html += '<span class="section-label">Raw HTML</span>';
-    html += '<button id="copy-html-btn" class="copy-btn-small">Copy</button>';
+    html += '<section class="section">';
+    html += '<div class="section-header">';
+    html += '<span class="section-label">RAW HTML</span>';
+    html += '<button id="copy-html-btn" class="btn btn-small">Copy</button>';
     html += '</div>';
     html += '<textarea id="export-html" class="code-textarea" readonly placeholder="Select an element to view its markup."></textarea>';
     html += '</section>';
 
     // Inline Styles Section
-    html += '<section id="inline-styles-section" class="code-section hidden">';
-    html += '<div class="section-header-inline">';
-    html += '<span class="section-label">Inline Styles</span>';
-    html += '<button id="copy-styles-btn" class="copy-btn-small">Copy</button>';
+    html += '<section id="inline-styles-section" class="section hidden">';
+    html += '<div class="section-header">';
+    html += '<span class="section-label">INLINE STYLES</span>';
+    html += '<button id="copy-styles-btn" class="btn btn-small">Copy</button>';
     html += '</div>';
     html += '<textarea id="inline-styles-text" class="code-textarea code-textarea-sm" readonly></textarea>';
     html += '</section>';
 
     // Inline JS Section
-    html += '<section id="inline-js-section" class="code-section hidden">';
-    html += '<div class="section-header-inline">';
-    html += '<span class="section-label">Inline JavaScript</span>';
-    html += '<button id="copy-js-btn" class="copy-btn-small">Copy</button>';
+    html += '<section id="inline-js-section" class="section hidden">';
+    html += '<div class="section-header">';
+    html += '<span class="section-label">INLINE JAVASCRIPT</span>';
+    html += '<button id="copy-js-btn" class="btn btn-small">Copy</button>';
     html += '</div>';
     html += '<div id="inline-js-content" class="js-items"></div>';
     html += '</section>';
@@ -278,13 +279,14 @@ var codeSnippetsTab = {
             codeDiv.textContent = handler.value;
             itemDiv.appendChild(codeDiv);
 
-            var copyBtn = document.createElement('button');
-            copyBtn.className = 'copy-btn-small';
-            copyBtn.textContent = 'Copy';
-            copyBtn.onclick = function() {
-              self.copyToClipboard(handler.attr + '="' + handler.value + '"', copyBtn);
-            };
-            itemDiv.appendChild(copyBtn);
+var copyBtn = document.createElement('button');
+copyBtn.className = 'copy-btn-small';
+copyBtn.textContent = 'Copy';
+copyBtn.setAttribute('aria-label', 'Copy ' + handler.attr);
+copyBtn.onclick = function() {
+self.copyToClipboard(handler.attr + '="' + handler.value + '"', copyBtn);
+};
+itemDiv.appendChild(copyBtn);
 
             jsContent.appendChild(itemDiv);
           })(data.inlineJS[i]);

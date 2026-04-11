@@ -882,17 +882,23 @@
     chrome.runtime &&
     chrome.runtime.onMessage
   ) {
-    chrome.runtime.onMessage.addListener(function (msg, sender, sendResponse) {
-      console.log("Content received:", msg.type);
-      try {
-        switch (msg.type) {
-          case "EXTRACT_PAGE_DATA":
-            var pageData = extractPageStats();
-            pageData.colors = extractColors();
-            pageData.typography = extractTypography();
-            pageData.assets = extractAssets();
-            sendResponse({ success: true, data: pageData });
-            break;
+chrome.runtime.onMessage.addListener(function (msg, sender, sendResponse) {
+  console.log("Content received:", msg.type);
+  try {
+    switch (msg.type) {
+      case "EXTRACT_PAGE_DATA":
+        console.log("[DEBUG] Extracting page data...");
+        var pageData = extractPageStats();
+        console.log("[DEBUG] pageData after extractPageStats:", pageData);
+        pageData.colors = extractColors();
+        console.log("[DEBUG] colors:", pageData.colors ? pageData.colors.length : "none");
+        pageData.typography = extractTypography();
+        console.log("[DEBUG] typography:", pageData.typography ? pageData.typography.length : "none");
+        pageData.assets = extractAssets();
+        console.log("[DEBUG] assets:", pageData.assets ? pageData.assets.length : "none");
+        console.log("[DEBUG] Final pageData:", pageData);
+        sendResponse({ success: true, data: pageData });
+        break;
           case "EXTRACT_COLORS":
             sendResponse({ success: true, data: extractColors() });
             break;

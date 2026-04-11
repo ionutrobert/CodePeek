@@ -1,5 +1,6 @@
 // Service worker for Code Peek - Plain ES5
-var DEBUG = false;
+var DEBUG = true;
+var IS_DEV_MODE = true; // Set to false by build script for dist
 
 if (DEBUG) console.log("Code Peek service worker starting...");
 
@@ -21,24 +22,24 @@ chrome.runtime.onInstalled.addListener(function (details) {
   if (DEBUG) console.log("Installed:", details.reason);
 
   if (chrome.sidePanel) {
-    chrome.sidePanel.setOptions(
-      {
-        enabled: true,
-        path: "sidepanel/index.html",
-      },
-      function () {
-        if (DEBUG) console.log("Side panel configured");
+    chrome.sidePanel.setOptions({
+      enabled: true,
+      path: "src/sidepanel/index.html"
+    }, function() {
+      if (chrome.runtime.lastError) {
+        console.error("Error setting side panel options:", chrome.runtime.lastError.message);
+      } else if (DEBUG) {
+        console.log("Side panel options set");
       }
-    );
-  }
-});
 
-chrome.action.onClicked.addListener(function (tab) {
-  if (DEBUG) console.log("Icon clicked");
-
-  if (chrome.sidePanel) {
-    chrome.sidePanel.open({ windowId: tab.windowId }, function () {
-      if (DEBUG) console.log("Side panel opened");
+      // Enable sidebar to open on action icon click
+      chrome.sidePanel.setPanelBehavior({ openPanelOnActionClick: true }, function() {
+        if (chrome.runtime.lastError) {
+          console.error("Error setting panel behavior:", chrome.runtime.lastError.message);
+        } else if (DEBUG) {
+          console.log("Panel behavior set: open on action click");
+        }
+      });
     });
   }
 });
@@ -64,25 +65,34 @@ chrome.runtime.onMessage.addListener(function (message, sender, sendResponse) {
       return true;
     }
 
-    if (message.type === "INJECT_CONTENT_SCRIPT") {
-      tabId = message.tabId;
-      chrome.scripting.executeScript(
-        {
-          target: { tabId: tabId },
-          files: ["src/content/bundle.js"],
-        },
-        function (results) {
-          if (chrome.runtime.lastError) {
-            console.error("Injection failed:", chrome.runtime.lastError.message);
-            try { sendResponse({ success: false, error: chrome.runtime.lastError.message }); } catch (e) {}
-          } else {
-            if (DEBUG) console.log("Content script injected into tab", tabId);
-            try { sendResponse({ success: true }); } catch (e) {}
+  if (message.type === "INJECT_CONTENT_SCRIPT") {
+    tabId = message.tabId;
+    // IS_DEV_MODE is replaced by build script: true for src/, false for dist
+    var files = IS_DEV_MODE ? ["src/content/tech-detector.js", "src/content/index.js"] : ["content/bundle.js"];
+    if (DEBUG) console.log("Injecting content scripts:", files, "(IS_DEV_MODE:", IS_DEV_MODE + ")");
+    chrome.scripting.executeScript(
+      {
+        target: { tabId: tabId },
+        files: files,
+      },
+      function (results) {
+        if (chrome.runtime.lastError) {
+          var err = chrome.runtime.lastError.message || "";
+          // Suppress expected errors for protected pages and closed tabs
+          if (err.indexOf("chrome://") === -1 && 
+              err.indexOf("Cannot access") === -1 && 
+              err.indexOf("No tab with id") === -1) {
+            console.error("Injection failed:", err);
           }
+          try { sendResponse({ success: false, error: err }); } catch (e) {}
+        } else {
+          if (DEBUG) console.log("Content script injected into tab", tabId);
+          try { sendResponse({ success: true }); } catch (e) {}
         }
-      );
-      return true;
-    }
+      }
+    );
+    return true;
+  }
 
     if (message.type === "SIDEPANEL_CLOSED") {
       chrome.tabs.query({ active: true, currentWindow: true }, function(tabs) {
@@ -99,39 +109,140 @@ chrome.runtime.onMessage.addListener(function (message, sender, sendResponse) {
       return true;
     }
 
-    if (message.type === "CAPTURE_VISIBLE_TAB") {
-      chrome.tabs.captureVisibleTab(null, { format: "png" }, function (dataUrl) {
-        if (chrome.runtime.lastError) {
-          try {
-            sendResponse({
-              success: false,
-              error: chrome.runtime.lastError.message,
-            });
-          } catch (e) {}
-        } else {
-          try {
-            sendResponse({ success: true, dataUrl: dataUrl });
-          } catch (e) {}
-        }
-      });
-      return true;
-    }
+  if (message.type === "CAPTURE_VISIBLE_TAB") {
+    chrome.tabs.captureVisibleTab(null, { format: "png" }, function (dataUrl) {
+      if (chrome.runtime.lastError) {
+        try {
+          sendResponse({
+            success: false,
+            error: chrome.runtime.lastError.message,
+          });
+        } catch (e) {}
+      } else {
+        try {
+          sendResponse({ success: true, dataUrl: dataUrl });
+        } catch (e) {}
+      }
+    });
+    return true;
+  }
 
-    if (sender.tab) {
-      try {
-        chrome.runtime.sendMessage(message, function (response) {
-          try {
-            sendResponse({ received: true });
-          } catch (e) {
-            console.error("Error in forward callback:", e);
+  // Re-enable sidebar panel behavior (when returning from floating)
+  if (message.type === "ENABLE_SIDEBAR") {
+    if (DEBUG) console.log('[SW] ENABLE_SIDEBAR received');
+    if (chrome.sidePanel) {
+      chrome.sidePanel.setOptions({
+        enabled: true,
+        path: "src/sidepanel/index.html"
+      }, function() {
+        if (chrome.runtime.lastError) {
+          console.error('[SW] Error setting options:', chrome.runtime.lastError.message);
+        }
+        chrome.sidePanel.setPanelBehavior({ openPanelOnActionClick: true }, function() {
+          if (chrome.runtime.lastError) {
+            console.error('[SW] Error setting panel behavior:', chrome.runtime.lastError.message);
+          } else if (DEBUG) {
+            console.log('[SW] Panel behavior re-enabled');
           }
         });
-      } catch (err) {
-        console.error("Error forwarding from content:", err);
-        try { sendResponse({ received: false, error: err.message }); } catch (e2) {}
-      }
-      return true;
+      });
     }
+    if (sendResponse) sendResponse({ success: true });
+    return true;
+  }
+
+
+  // Handle CREATE_FLOATING_PANEL explicitly - forward to content script
+  if (message.type === "CREATE_FLOATING_PANEL") {
+    if (DEBUG) console.log('[SW] CREATE_FLOATING_PANEL received, forwarding to content script');
+    // Use last focused window to find the active tab (works better from service worker)
+    chrome.tabs.query({ active: true, lastFocusedWindow: true }, function(tabs) {
+      if (tabs && tabs[0]) {
+        var targetTab = tabs[0];
+        if (DEBUG) console.log('[SW] Target tab:', targetTab.id, targetTab.url);
+        // Skip extension pages
+        if (targetTab.url && (targetTab.url.startsWith('chrome://') || targetTab.url.startsWith('chrome-extension://'))) {
+          if (DEBUG) console.log('[SW] Skipping extension page');
+          if (sendResponse) sendResponse({ success: false, error: 'Cannot create floating panel on extension pages' });
+          return;
+        }
+        if (DEBUG) console.log('[SW] Sending message to tab', targetTab.id);
+        chrome.tabs.sendMessage(targetTab.id, message, function(response) {
+          if (chrome.runtime.lastError) {
+            if (DEBUG) console.log('[SW] Error forwarding CREATE_FLOATING_PANEL:', chrome.runtime.lastError.message);
+            if (sendResponse) sendResponse({ success: false, error: chrome.runtime.lastError.message });
+          } else {
+            if (DEBUG) console.log('[SW] Message forwarded successfully, response:', response);
+            if (sendResponse) sendResponse(response || { success: true });
+          }
+        });
+      } else {
+        // Fallback: try to find any active tab in any window
+        chrome.tabs.query({ active: true }, function(allTabs) {
+          var webTab = null;
+          for (var i = 0; i < allTabs.length; i++) {
+            var t = allTabs[i];
+            if (t.url && (t.url.startsWith('http://') || t.url.startsWith('https://') || t.url.startsWith('file://'))) {
+              webTab = t;
+              break;
+            }
+          }
+          if (webTab) {
+            if (DEBUG) console.log('[SW] Found web tab via fallback:', webTab.id, webTab.url);
+            chrome.tabs.sendMessage(webTab.id, message, function(response) {
+              if (chrome.runtime.lastError) {
+                if (sendResponse) sendResponse({ success: false, error: chrome.runtime.lastError.message });
+              } else {
+                if (sendResponse) sendResponse(response || { success: true });
+              }
+            });
+          } else {
+            if (DEBUG) console.log('[SW] No web tab found');
+            if (sendResponse) sendResponse({ success: false, error: 'No active web tab' });
+          }
+        });
+      }
+    });
+  return true;
+  }
+
+  // Save floating panel state
+  if (message.type === "SAVE_FLOATING_STATE") {
+    if (DEBUG) console.log('[SW] Saving floating state:', message.payload);
+    chrome.storage.local.set({ floatingPanelState: message.payload }, function() {
+      if (chrome.runtime.lastError) {
+        console.error('[SW] Error saving floating state:', chrome.runtime.lastError.message);
+      }
+      if (sendResponse) sendResponse({ success: true });
+    });
+    return true;
+  }
+
+  // Get floating panel state
+  if (message.type === "GET_FLOATING_STATE") {
+    chrome.storage.local.get(['floatingPanelState'], function(data) {
+      if (sendResponse) sendResponse({ success: true, data: data.floatingPanelState || null });
+    });
+    return true;
+  }
+
+  // Clear floating panel state
+  if (message.type === "CLEAR_FLOATING_STATE") {
+    chrome.storage.local.remove(['floatingPanelState'], function() {
+      if (sendResponse) sendResponse({ success: true });
+    });
+    return true;
+  }
+
+  // Messages from content scripts are already delivered to sidepanel directly by Chrome.
+  // Only forward to sidepanel if this is a message from the sidepanel that needs to go to content script.
+  if (sender.tab && !sender.id) {
+    // This is from a content script (sender.tab exists, sender.id is undefined for content scripts)
+    // Chrome already routes content script messages to extension views, so no forwarding needed
+    // Just acknowledge receipt
+    try { sendResponse({ received: true }); } catch (e) {}
+    return true;
+  }
 
     chrome.tabs.query({ active: true, currentWindow: true }, function (tabs) {
       if (tabs && tabs[0]) {

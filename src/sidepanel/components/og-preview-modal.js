@@ -1,16 +1,15 @@
 // OG Preview Modal - Nothing Design System
 var ogPreviewModal = (function () {
   var activeModal = null;
-  var keydownHandler = null;
 
   var defaultPlatforms = [
-    { platform: 'Facebook', width: 1200, height: 630, aspectRatio: '1.91:1', accentColor: '#1877F2', safeZone: 90, displaySize: '1200×630' },
-    { platform: 'Twitter/X', width: 1200, height: 600, aspectRatio: '2:1', accentColor: '#000000', safeZone: 80, displaySize: '1200×600' },
-    { platform: 'LinkedIn', width: 1200, height: 627, aspectRatio: '1.91:1', accentColor: '#0A66C2', safeZone: 95, displaySize: '1200×627' },
-    { platform: 'WhatsApp', width: 300, height: 200, aspectRatio: '1.5:1', accentColor: '#25D366', safeZone: 70, displaySize: '300×200' },
-    { platform: 'Slack', width: 360, height: 190, aspectRatio: '1.9:1', accentColor: '#4A154B', safeZone: 75, displaySize: '360×190' },
-    { platform: 'Discord', width: 400, height: 209, aspectRatio: '1.9:1', accentColor: '#5865F2', safeZone: 80, displaySize: '400×209' },
-    { platform: 'Pinterest', width: 1200, height: 630, aspectRatio: '1.91:1', accentColor: '#E60023', safeZone: 100, displaySize: '1200×630' }
+    { platform: 'WhatsApp', width: 300, height: 200, safeZone: 70, displaySize: '300×200' },
+    { platform: 'Slack', width: 360, height: 190, safeZone: 75, displaySize: '360×190' },
+    { platform: 'Discord', width: 400, height: 209, safeZone: 80, displaySize: '400×209' },
+    { platform: 'Twitter/X', width: 1200, height: 600, safeZone: 80, displaySize: '1200×600' },
+    { platform: 'Facebook', width: 1200, height: 630, safeZone: 90, displaySize: '1200×630' },
+    { platform: 'LinkedIn', width: 1200, height: 627, safeZone: 95, displaySize: '1200×627' },
+    { platform: 'Pinterest', width: 1200, height: 630, safeZone: 100, displaySize: '1200×630' }
   ];
 
   var escapeHtml = function (value) {
@@ -30,139 +29,102 @@ var ogPreviewModal = (function () {
     return str.substring(0, maxLength - 3) + '...';
   };
 
-  var getDisplayDomain = function (url) {
-    var value = url ? String(url) : '';
-    var match = value.match(/^[a-z]+:\/\/([^\/]+)/i);
-    return match && match[1] ? match[1] : value.replace(/^https?:\/\//i, '');
-  };
-
-  var getSafeZoneInfo = function (platform) {
-    var safeZone = platform.safeZone || 100;
-    if (safeZone >= 100) return null;
-    var cropPct = 100 - safeZone;
-    return {
-      safeZone: safeZone,
-      cropPct: cropPct,
-      cropPerSide: cropPct / 2
-    };
-  };
-
-  var buildContent = function (ogData, pageData) {
+  var buildContent = function (ogData) {
     var hasData = ogData && (ogData.title || ogData.description || ogData.image);
-    var platforms = defaultPlatforms;
+    var mostRestrictive = defaultPlatforms[0];
     var html = '';
 
-    // Status Card
-    html += '<div class="card" style="margin-bottom: var(--space-lg);">';
-    html += '<div style="display: flex; align-items: center; gap: var(--space-md);">';
-    html += '<div style="flex: 1; min-width: 0;">';
-    html += '<div class="text-label" style="margin-bottom: var(--space-xs);">OPEN GRAPH</div>';
-    html += '<div class="text-primary">' + (hasData ? 'OG DATA READY' : 'NO OG DATA') + '</div>';
-    html += '</div>';
-    if (ogData && ogData.url) {
-      html += '<div class="tag">' + truncateText(getDisplayDomain(ogData.url), 30) + '</div>';
+    html += '<div style="margin-bottom: var(--space-md);">';
+    html += '<label class="text-label" style="display: block; margin-bottom: var(--space-xs);">PLATFORM</label>';
+    html += '<select id="og-platform-select" style="width: 100%; padding: var(--space-sm); background: var(--surface); border: 1px solid var(--border-visible); color: var(--text-primary); font-family: var(--font-mono); font-size: var(--body-sm); cursor: pointer;">';
+    for (var i = 0; i < defaultPlatforms.length; i++) {
+      var p = defaultPlatforms[i];
+      var cropLabel = p.safeZone < 100 ? ' (' + (100 - p.safeZone) + '% crop)' : '';
+      html += '<option value="' + p.platform + '"' + (i === 0 ? ' selected' : '') + '>' + p.platform + ' — ' + p.displaySize + cropLabel + '</option>';
     }
-    html += '</div>';
-    if (!hasData) {
-      html += '<div class="text-secondary" style="margin-top: var(--space-md); font-size: var(--body-sm);">Add og:title, og:description, and og:image meta tags.</div>';
-    }
+    html += '</select>';
     html += '</div>';
 
-    // Platform Tabs
-    html += '<div class="subtabs" style="margin-bottom: var(--space-md);">';
-    for (var i = 0; i < platforms.length; i++) {
-      var isActive = i === 0;
-      html += '<button class="subtab-btn' + (isActive ? ' active' : '') + '" data-platform="' + platforms[i].platform + '" style="font-size: 10px; padding: var(--space-sm) var(--space-sm);">';
-      html += truncateText(platforms[i].platform, 8).toUpperCase();
-      html += '</button>';
-    }
-    html += '</div>';
+    html += '<div id="og-preview-container" style="position: relative; width: 100%; aspect-ratio: ' + mostRestrictive.width + ' / ' + mostRestrictive.height + '; background-color: var(--surface); border: 1px solid var(--border); border-radius: var(--radius-md); overflow: hidden;">';
 
-    // Preview Panels
-    for (var j = 0; j < platforms.length; j++) {
-      var platform = platforms[j];
-      var safeInfo = getSafeZoneInfo(platform);
-      var isHidden = j !== 0;
-      var platformId = 'og-panel-' + platform.platform.toLowerCase().replace(/[^a-z0-9]/g, '-');
-
-      html += '<div id="' + platformId + '" class="og-preview-panel' + (isHidden ? ' hidden' : '') + '" style="display: ' + (isHidden ? 'none' : 'block') + ';">';
-
-      // Platform Header
-      html += '<div class="card-compact" style="margin-bottom: var(--space-md); display: flex; justify-content: space-between; align-items: center;">';
-      html += '<div>';
-      html += '<div class="text-label">' + platform.platform.toUpperCase() + '</div>';
-      html += '<div class="text-primary" style="font-size: var(--subheading);">' + platform.width + ' × ' + platform.height + '</div>';
+    if (ogData && ogData.image) {
+      html += '<img id="og-preview-img" src="' + escapeHtml(ogData.image) + '" alt="Preview" style="width: 100%; height: 100%; object-fit: cover;">';
+      html += '<div id="og-safezone-overlay" style="position: absolute; inset: ' + (100 - mostRestrictive.safeZone) / 2 + '%; border: 2px dashed var(--text-secondary); pointer-events: none;"></div>';
+      html += '<a href="' + escapeHtml(ogData.image) + '" target="_blank" rel="noopener" style="position: absolute; top: var(--space-sm); right: var(--space-sm); width: 24px; height: 24px; display: flex; align-items: center; justify-content: center; background: var(--surface); border: 1px solid var(--border-visible); border-radius: var(--radius-sm); cursor: pointer; text-decoration: none;" title="Open image in new tab">';
+      html += '<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="color: var(--text-secondary);"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"></path><polyline points="15 3 21 3 21 9"></polyline><line x1="10" y1="14" x2="21" y2="3"></line></svg>';
+      html += '</a>';
+    } else {
+      html += '<div style="display: flex; flex-direction: column; align-items: center; justify-content: center; height: 100%; gap: var(--space-sm);">';
+      html += '<div class="text-label">NO IMAGE</div>';
       html += '</div>';
-      html += '<div class="tag">' + platform.aspectRatio + '</div>';
+    }
+
+    html += '</div>';
+
+    html += '<div id="og-crop-warning" style="margin-top: var(--space-sm); padding: var(--space-sm); background-color: var(--surface); border: 1px solid var(--border-visible); border-radius: var(--radius-sm); text-align: center;">';
+    html += '<span class="text-secondary" style="font-family: var(--font-mono); font-size: var(--caption);">' + (100 - mostRestrictive.safeZone) + '% CROP ZONE — EDGES MAY BE CUT OFF</span>';
+    html += '</div>';
+
+    if (ogData && ogData.title) {
+      html += '<div style="margin-top: var(--space-md); padding: var(--space-md); background-color: var(--surface); border-radius: var(--radius-md);">';
+      html += '<div class="text-primary" style="font-size: var(--subheading); margin-bottom: var(--space-xs);">' + escapeHtml(truncateText(ogData.title, 60)) + '</div>';
+      if (ogData.description) {
+        html += '<div class="text-secondary" style="font-size: var(--body-sm);">' + escapeHtml(truncateText(ogData.description, 100)) + '</div>';
+      }
+      if (ogData.url) {
+        html += '<div class="text-label" style="margin-top: var(--space-sm); color: var(--text-disabled);">' + escapeHtml(truncateText(ogData.url, 60)) + '</div>';
+      }
       html += '</div>';
-
-      // Image Preview
-      html += '<div style="position: relative; width: 100%; aspect-ratio: ' + platform.width + ' / ' + platform.height + '; background-color: var(--surface); border: 1px solid var(--border); border-radius: var(--radius-md); overflow: hidden;">';
-
-      if (ogData && ogData.image) {
-        html += '<img src="' + escapeHtml(ogData.image) + '" alt="Preview" style="width: 100%; height: 100%; object-fit: cover;">';
-
-        if (safeInfo) {
-          // Safe zone overlay
-          html += '<div style="position: absolute; inset: ' + safeInfo.cropPerSide + '%; border: 1px dashed var(--text-secondary); pointer-events: none;"></div>';
-
-          // Crop warning
-          html += '<div style="position: absolute; bottom: var(--space-sm); left: 50%; transform: translateX(-50%); padding: var(--space-xs) var(--space-sm); background-color: var(--surface); border: 1px solid var(--border-visible); font-family: var(--font-mono); font-size: var(--caption); color: var(--text-secondary);">';
-          html += safeInfo.cropPct + '% CROP ZONE';
-          html += '</div>';
-        }
-      } else {
-        html += '<div style="display: flex; flex-direction: column; align-items: center; justify-content: center; height: 100%; gap: var(--space-sm);">';
-        html += '<div class="text-label">NO IMAGE</div>';
-        html += '</div>';
-      }
-
-      html += '</div>'; // image container
-
-      // Meta Info
-      if (ogData && ogData.title) {
-        html += '<div style="margin-top: var(--space-md); padding: var(--space-md); background-color: var(--surface); border-radius: var(--radius-md);">';
-        html += '<div class="text-primary" style="font-size: var(--subheading); margin-bottom: var(--space-xs);">' + escapeHtml(truncateText(ogData.title, 60)) + '</div>';
-        if (ogData.description) {
-          html += '<div class="text-secondary" style="font-size: var(--body-sm);">' + escapeHtml(truncateText(ogData.description, 100)) + '</div>';
-        }
-        html += '</div>';
-      }
-
-      html += '</div>'; // panel
     }
 
     return html;
   };
 
-  var activateTab = function (platformName) {
-    var buttons = document.querySelectorAll('.og-preview-tab-btn');
-    var panels = document.querySelectorAll('.og-preview-panel');
+  var updatePreview = function (platformName) {
+    var platform = null;
+    for (var i = 0; i < defaultPlatforms.length; i++) {
+      if (defaultPlatforms[i].platform === platformName) {
+        platform = defaultPlatforms[i];
+        break;
+      }
+    }
+    if (!platform) return;
 
-    for (var i = 0; i < buttons.length; i++) {
-      var isActive = buttons[i].getAttribute('data-platform') === platformName;
-      buttons[i].classList.toggle('active', isActive);
+    var container = document.getElementById('og-preview-container');
+    var warning = document.getElementById('og-crop-warning');
+    if (!container) return;
+
+    container.style.aspectRatio = platform.width + ' / ' + platform.height;
+
+    var overlay = document.getElementById('og-safezone-overlay');
+    if (overlay) {
+      var cropPerSide = (100 - platform.safeZone) / 2;
+      overlay.style.inset = cropPerSide + '%';
+      overlay.style.display = platform.safeZone < 100 ? 'block' : 'none';
     }
 
-    for (var j = 0; j < panels.length; j++) {
-      var panel = panels[j];
-      var isMatch = panel.id === 'og-panel-' + platformName.toLowerCase().replace(/[^a-z0-9]/g, '-');
-      panel.style.display = isMatch ? 'block' : 'none';
+    if (warning) {
+      if (platform.safeZone < 100) {
+        warning.innerHTML = '<span class="text-secondary" style="font-family: var(--font-mono); font-size: var(--caption);">' + (100 - platform.safeZone) + '% CROP ZONE — EDGES MAY BE CUT OFF</span>';
+        warning.style.display = 'block';
+      } else {
+        warning.style.display = 'none';
+      }
     }
   };
 
-  var bindTabs = function () {
-    var buttons = document.querySelectorAll('.og-preview-tab-btn');
-    for (var i = 0; i < buttons.length; i++) {
-      buttons[i].addEventListener('click', function () {
-        activateTab(this.getAttribute('data-platform'));
+  var bindEvents = function () {
+    var select = document.getElementById('og-platform-select');
+    if (select) {
+      select.addEventListener('change', function () {
+        updatePreview(this.value);
       });
     }
   };
 
   var open = function (pageData) {
     var ogData = {};
-    
+
     if (typeof ogPreviewData !== 'undefined' && ogPreviewData && typeof ogPreviewData.extractOgData === 'function') {
       try {
         ogData = ogPreviewData.extractOgData(pageData || {});
@@ -183,7 +145,7 @@ var ogPreviewModal = (function () {
 
     activeModal = window.createModal({
       title: 'OG PREVIEW',
-      content: buildContent(ogData, pageData || {}),
+      content: buildContent(ogData),
       width: '480px',
       onClose: function () {
         activeModal = null;
@@ -191,7 +153,7 @@ var ogPreviewModal = (function () {
     });
 
     activeModal.show();
-    bindTabs();
+    bindEvents();
   };
 
   return {

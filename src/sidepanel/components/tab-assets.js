@@ -40,38 +40,43 @@ var assetsTab = {
     html += '<div class="page-subtitle">Images & Media</div>';
     html += '</div>';
 
-    // Stats
-    html += '<div class="stat-section" style="border-bottom: none;">';
-    html += '<div style="display: flex; justify-content: space-between; align-items: baseline;">';
-    html += '<span class="text-label">FOUND</span>';
-    html += '<span class="text-display" style="font-size: var(--heading);">' + (assets ? assets.length : 0) + '</span>';
+  // Stats
+  html += '<div class="stat-section border-bottom-none">';
+  html += '<div class="flex-between">';
+  html += '<span class="text-label">FOUND</span>';
+  html += '<span class="text-display" style="font-size: var(--heading);">' + (assets ? assets.length : 0) + '</span>';
+  html += '</div>';
+  html += '</div>';
+
+  if (isRefreshing) {
+    html += '<div class="info-banner">';
+    html += '<span class="loading-text loading-bracket">SCANNING</span>';
     html += '</div>';
+  }
+
+  if (errorMessage) {
+    html += '<div class="info-banner-accent">';
+    html += '<span class="text-accent" style="font-family: var(--font-mono); font-size: var(--caption); letter-spacing: 0.04em;">[CACHED RESULTS]</span>';
+    html += '<div class="text-secondary mt-xs" style="font-size: var(--body-sm);">' + this.escapeHtml(errorMessage) + '</div>';
     html += '</div>';
+  }
 
-    if (isRefreshing) {
-      html += '<div style="padding: var(--space-md); background-color: var(--surface); border: 1px solid var(--border); border-radius: var(--radius-md); margin-bottom: var(--space-md);">';
-      html += '<span class="loading-text loading-bracket">SCANNING</span>';
+  if (!assets || assets.length === 0) {
+    if (!isRefreshing) {
+      html += '<div class="empty-state-enhanced">';
+      html += '<div class="empty-state-title">NO MEDIA FOUND</div>';
+      html += '<div class="empty-state-reason">Images on this page might be:</div>';
+      html += '<ul class="empty-state-list">';
+      html += '<li>Loaded via CSS background-image</li>';
+      html += '<li>Lazy-loaded below the viewport</li>';
+      html += '<li>Rendered via Canvas or WebGL</li>';
+      html += '</ul>';
       html += '</div>';
     }
-
-    if (errorMessage) {
-      html += '<div style="padding: var(--space-md); border: 1px solid var(--accent); border-radius: var(--radius-md); margin-bottom: var(--space-md);">';
-      html += '<span class="text-accent" style="font-family: var(--font-mono); font-size: var(--caption); letter-spacing: 0.04em;">[CACHED RESULTS]</span>';
-      html += '<div class="text-secondary" style="margin-top: var(--space-xs); font-size: var(--body-sm);">' + this.escapeHtml(errorMessage) + '</div>';
-      html += '</div>';
-    }
-
-    if (!assets || assets.length === 0) {
-      if (!isRefreshing) {
-        html += '<div class="empty-state">';
-        html += '<div class="empty-state-title">NO MEDIA FOUND</div>';
-        html += '<div class="empty-state-text">No downloadable images or SVG assets detected.</div>';
-        html += '</div>';
-      }
-      html += '</div>';
-      container.innerHTML = html;
-      return;
-    }
+    html += '</div>';
+    container.innerHTML = html;
+    return;
+  }
 
     // Asset List
     for (var i = 0; i < assets.length; i++) {
@@ -84,65 +89,59 @@ var assetsTab = {
   },
 
   renderAssetCard: function (asset, index) {
-    var filename = this.getFilename(asset, index);
-    var assetType = this.getTypeLabel(asset);
-    var format = this.getFormatLabel(asset);
-    var dimensions = this.getDimensionsLabel(asset);
-    var source = this.getSourceLabel(asset);
-    var origin = this.getOriginLabel(asset);
-    var secondaryAction = this.getSecondaryAction(asset);
-    var html = '';
+  var filename = this.getFilename(asset, index);
+  var format = this.getFormatLabel(asset);
+  var dimensions = this.getDimensionsLabel(asset);
+  var secondaryAction = this.getSecondaryAction(asset);
+  var html = '';
 
-    html += '<div class="card" style="margin-bottom: var(--space-md);">';
+  html += '<div class="card mb-md">';
 
-    // Header
-    html += '<div style="display: flex; align-items: flex-start; gap: var(--space-md); margin-bottom: var(--space-md);">';
-    
-    // Icon
-    html += '<div style="width: 44px; height: 44px; display: flex; align-items: center; justify-content: center; border: 1px solid var(--border-visible); border-radius: var(--radius-md); color: var(--text-secondary);">';
-    html += this.getAssetIcon(asset);
-    html += '</div>';
+  // Header with thumbnail on left
+  html += '<div class="flex-row flex-start flex-gap-md mb-md">';
 
-    // Info
-    html += '<div style="flex: 1; min-width: 0;">';
-    html += '<div style="display: flex; flex-wrap: wrap; gap: var(--space-xs); margin-bottom: var(--space-xs);">';
-    html += '<span class="tag">' + this.escapeHtml(assetType) + '</span>';
-    html += '<span class="tag">' + this.escapeHtml(format) + '</span>';
-    if (source) {
-      html += '<span class="tag">' + this.escapeHtml(source) + '</span>';
-    }
-    html += '</div>';
-    html += '<div class="text-primary" style="font-size: var(--body-sm); overflow: hidden; text-overflow: ellipsis; white-space: nowrap;" title="' + this.escapeHtml(filename) + '">' + this.escapeHtml(filename) + '</div>';
-    html += '<div class="text-mono" style="font-size: var(--caption); color: var(--text-secondary); overflow: hidden; text-overflow: ellipsis; white-space: nowrap;" title="' + this.escapeHtml(origin) + '">' + this.escapeHtml(origin) + '</div>';
-    html += '</div>';
-    html += '</div>';
+  // Thumbnail/Icon box
+  html += '<div class="asset-thumb">';
+  html += this.renderAssetThumbnail(asset);
+  html += '</div>';
 
-    // Meta Grid
-    html += '<div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 1px; background-color: var(--border); margin-bottom: var(--space-md); border: 1px solid var(--border); border-radius: var(--radius-md); overflow: hidden;">';
-    html += '<div style="padding: var(--space-sm); background-color: var(--black); text-align: center;">';
-    html += '<div class="text-label" style="margin-bottom: var(--space-2xs);">TYPE</div>';
-    html += '<div class="text-primary" style="font-size: var(--body-sm);">' + this.escapeHtml(assetType) + '</div>';
-    html += '</div>';
-    html += '<div style="padding: var(--space-sm); background-color: var(--black); text-align: center;">';
-    html += '<div class="text-label" style="margin-bottom: var(--space-2xs);">FORMAT</div>';
-    html += '<div class="text-primary" style="font-size: var(--body-sm);">' + this.escapeHtml(format) + '</div>';
-    html += '</div>';
-    html += '<div style="padding: var(--space-sm); background-color: var(--black); text-align: center;">';
-    html += '<div class="text-label" style="margin-bottom: var(--space-2xs);">SIZE</div>';
-    html += '<div class="text-primary" style="font-size: var(--body-sm);">' + this.escapeHtml(dimensions) + '</div>';
-    html += '</div>';
-    html += '</div>';
+  // Info
+  html += '<div class="flex-1 min-w-0">';
+  html += '<div class="text-primary text-truncate mb-xs" style="font-size: var(--body-sm);" title="' + this.escapeHtml(filename) + '">' + this.escapeHtml(filename) + '</div>';
+  // Clickable URL
+  if (asset.src && asset.src.indexOf('data:') !== 0) {
+    html += '<a href="' + this.escapeHtml(asset.src) + '" target="_blank" rel="noopener noreferrer" class="text-mono asset-link text-truncate" style="font-size: var(--caption); color: var(--interactive); display: block; text-decoration: none;" title="' + this.escapeHtml(asset.src) + '">' + this.escapeHtml(this.truncateUrl(asset.src)) + '</a>';
+  } else {
+    html += '<div class="text-mono text-truncate" style="font-size: var(--caption); color: var(--text-secondary);">Inline asset</div>';
+  }
+  html += '</div>';
+  html += '</div>';
 
-    // Actions
-    html += '<div style="display: flex; gap: var(--space-sm);">';
-    html += '<button type="button" class="btn btn-primary" data-action="download" data-index="' + index + '" style="flex: 1;">DOWNLOAD</button>';
-    html += '<button type="button" class="btn btn-secondary asset-action-btn" data-action="' + secondaryAction.action + '" data-index="' + index + '" title="' + this.escapeHtml(secondaryAction.title) + '">';
-    html += secondaryAction.icon;
-    html += '</button>';
-    html += '</div>';
+  // Meta Grid
+  html += '<div class="card-grid">';
+  html += '<div class="card-grid-item">';
+  html += '<div class="text-label mb-xs">FORMAT</div>';
+  html += '<div class="text-primary" style="font-size: var(--body-sm);">' + this.escapeHtml(format) + '</div>';
+  html += '</div>';
+  html += '<div class="card-grid-item">';
+  html += '<div class="text-label mb-xs">SIZE</div>';
+  html += '<div class="text-primary" style="font-size: var(--body-sm);">' + this.escapeHtml(dimensions) + '</div>';
+  html += '</div>';
+  html += '</div>';
 
-    html += '</div>';
-    return html;
+  // Actions
+  html += '<div class="flex-row flex-gap-sm">';
+  html += '<button type="button" class="btn btn-primary flex-1" data-action="download" data-index="' + index + '" aria-label="Download ' + this.escapeHtml(filename) + '">DOWNLOAD</button>';
+  html += '<button type="button" class="btn btn-secondary asset-action-btn" data-action="open-tab" data-index="' + index + '" title="Open in new tab" aria-label="Open ' + this.escapeHtml(filename) + ' in new tab">';
+  html += '<svg width="16" height="16" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14"/></svg>';
+  html += '</button>';
+  html += '<button type="button" class="btn btn-secondary asset-action-btn" data-action="' + secondaryAction.action + '" data-index="' + index + '" title="' + this.escapeHtml(secondaryAction.title) + '">';
+  html += secondaryAction.icon;
+  html += '</button>';
+  html += '</div>';
+
+  html += '</div>';
+  return html;
   },
 
   bindActions: function (container, assets) {
@@ -159,21 +158,45 @@ var assetsTab = {
     }
   },
 
-  handleAction: function (action, asset, index, button) {
-    if (action === 'download') {
-      this.downloadAsset(asset, index, button);
-      return;
-    }
+	handleAction: function (action, asset, index, button) {
+		if (action === 'download') {
+			this.downloadAsset(asset, index, button);
+			return;
+		}
 
-    if (action === 'copy-url') {
-      this.copyText(asset.src || '');
-      return;
-    }
+		if (action === 'open-tab') {
+			this.openInNewTab(asset);
+			return;
+		}
 
-    if (action === 'copy-svg') {
-      this.copyText(asset.content || asset.src || '');
-    }
-  },
+		if (action === 'copy-url') {
+			this.copyText(asset.src || '');
+			return;
+		}
+
+		if (action === 'copy-svg') {
+			this.copyText(asset.content || asset.src || '');
+		}
+	},
+
+	openInNewTab: function (asset) {
+		var url = asset && asset.src ? asset.src : '';
+		if (!url || url.indexOf('data:') === 0) {
+			this.notify('ERROR', 'Cannot open inline asset in new tab.');
+			return;
+		}
+		if (typeof chrome !== 'undefined' && chrome.tabs && chrome.tabs.create) {
+			chrome.tabs.create({ url: url, active: true });
+		} else {
+			window.open(url, '_blank', 'noopener,noreferrer');
+		}
+	},
+
+	truncateUrl: function (url) {
+		if (!url) return '';
+		if (url.length <= 50) return url;
+		return url.substring(0, 25) + '...' + url.substring(url.length - 20);
+	},
 
   downloadAsset: function (asset, index, button) {
     var downloadUrl = asset && asset.src ? asset.src : '';
@@ -280,12 +303,23 @@ var assetsTab = {
     return 'IMAGE';
   },
 
-  getFormatLabel: function (asset) {
-    var extension = asset && asset.extension ? String(asset.extension) : '';
-    if (extension) return extension.toUpperCase();
-    if (asset && asset.type === 'svg') return 'SVG';
-    return 'UNKNOWN';
-  },
+	getFormatLabel: function (asset) {
+		var extension = asset && asset.extension ? String(asset.extension) : '';
+		if (extension) return extension.toUpperCase();
+		if (asset && asset.type === 'svg') return 'SVG';
+		if (asset && asset.type === 'background') return 'BG';
+		// Try to detect from src
+		if (asset && asset.src) {
+			var src = asset.src.toLowerCase();
+			if (src.indexOf('.png') !== -1 || src.indexOf('png') !== -1) return 'PNG';
+			if (src.indexOf('.jpg') !== -1 || src.indexOf('.jpeg') !== -1 || src.indexOf('jpg') !== -1 || src.indexOf('jpeg') !== -1) return 'JPG';
+			if (src.indexOf('.gif') !== -1 || src.indexOf('gif') !== -1) return 'GIF';
+			if (src.indexOf('.webp') !== -1 || src.indexOf('webp') !== -1) return 'WEBP';
+			if (src.indexOf('.svg') !== -1 || src.indexOf('svg') !== -1) return 'SVG';
+			if (src.indexOf('.avif') !== -1 || src.indexOf('avif') !== -1) return 'AVIF';
+		}
+		return 'IMAGE';
+	},
 
   getDimensionsLabel: function (asset) {
     var width = asset && asset.width ? Math.round(asset.width) : 0;
@@ -318,13 +352,63 @@ var assetsTab = {
     return { action: 'copy-url', title: 'Copy asset URL', icon: '<svg width="16" height="16" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z"></path></svg>' };
   },
 
-  getAssetIcon: function (asset) {
-    if (asset && asset.type === 'svg') {
-      return '<svg width="20" height="20" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M7 8l-4 4 4 4m10-8l4 4-4 4M14 4l-4 16"></path></svg>';
-    }
+ getAssetIcon: function (asset) {
+ if (asset && asset.type === 'svg') {
+ return '<svg width="20" height="20" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M7 8l-4 4 4 4m10-8l4 4-4 4M14 4l-4 16"></path></svg>';
+ }
 
-    return '<svg width="20" height="20" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2 1.586-1.586a2 2 0 012.828 0L20 14m-8-8h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z"></path></svg>';
+ return '<svg width="20" height="20" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2 1.586-1.586a2 2 0 012.828 0L20 14m-8-8h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z"></path></svg>';
+ },
+
+  renderAssetThumbnail: function (asset) {
+  // Inline SVG with content
+  if (asset && asset.type === 'svg' && asset.content) {
+    return '<div class="flex-center p-sm" style="width: 100%; height: 100%;">' +
+    '<svg viewBox="0 0 24 24" style="max-width: 100%; max-height: 100%; width: 48px; height: 48px;" ' +
+    'fill="none" stroke="currentColor" stroke-width="1">' +
+    this.extractSvgContent(asset.content) +
+    '</svg></div>';
+  }
+
+  // Data URL (inline base64 or SVG data URL)
+  if (asset && asset.src && asset.src.indexOf('data:') === 0) {
+    return '<img src="' + this.escapeHtml(asset.src) + '" alt="Preview" class="w-full" style="height: 100%; object-fit: contain;" onerror="this.style.display=\'none\'">';
+  }
+
+  // Regular image URL
+  if (asset && asset.type === 'image' && asset.src) {
+    return '<img src="' + this.escapeHtml(asset.src) + '" alt="Preview" class="w-full" style="height: 100%; object-fit: cover;" onerror="this.style.display=\'none\'">';
+  }
+
+  // SVG from URL
+  if (asset && asset.type === 'svg' && asset.src) {
+    return '<img src="' + this.escapeHtml(asset.src) + '" alt="Preview" class="w-full" style="height: 100%; object-fit: contain;" onerror="this.style.display=\'none\'">';
+  }
+
+  // Fallback icon
+  return this.getAssetIcon(asset);
   },
+
+ extractSvgContent: function (svgString) {
+ if (!svgString) return '';
+ // Extract paths, circles, rects, etc. from the SVG string
+ var paths = '';
+ var pathMatch;
+ var pathRegex = /<path\b[^>]*>/gi;
+ while ((pathMatch = pathRegex.exec(svgString)) !== null) {
+ paths += pathMatch[0];
+ }
+ 
+ if (!paths) {
+ // Try to extract any svg content between <svg> tags
+ var innerMatch = svgString.match(/<svg[^>]*>([\s\S]*?)<\/svg>/i);
+ if (innerMatch && innerMatch[1]) {
+ return innerMatch[1].replace(/<svg[^>]*>|<\/svg>/gi, '');
+ }
+ }
+ 
+ return paths;
+ },
 
   copyText: function (text) {
     if (typeof CodePeekApp !== 'undefined' && CodePeekApp.copyText) {

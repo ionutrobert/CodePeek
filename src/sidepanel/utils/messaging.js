@@ -38,28 +38,24 @@ var messaging = {
                 return;
               }
               
-              if (console && console.debug) console.debug('[DEBUG] Message error (attempt ' + attempts + '):', err);
-              
-              // If content script not present, try to inject and retry (but only once)
-              if (err.indexOf('Receiving end does not exist') !== -1 && attempts < maxAttempts) {
-                console.log('[DEBUG] Content script not present. Requesting injection for tab', tabId);
-                chrome.runtime.sendMessage({
-                  type: 'INJECT_CONTENT_SCRIPT',
-                  tabId: tabId
-                }, function(injResp) {
-                  if (chrome.runtime.lastError) {
-                    console.error('[DEBUG] Injection request failed:', chrome.runtime.lastError.message);
-                    if (callback) callback({ success: false, error: chrome.runtime.lastError.message });
-                    return;
-                  }
-                  console.log('[DEBUG] Injection successful. Retrying original message after delay...');
-                  setTimeout(function() {
-                    attempts = 0;
-                    attempt();
-                  }, 1500); // Wait longer for content script to be ready
-                });
-                return;
-              }
+// Suppress expected errors silently
+if (err.indexOf('Receiving end does not exist') !== -1 && attempts < maxAttempts) {
+chrome.runtime.sendMessage({
+type: 'INJECT_CONTENT_SCRIPT',
+tabId: tabId
+}, function(injResp) {
+if (chrome.runtime.lastError) {
+// Tab might be closed, suppress error
+if (callback) callback({ success: false, error: 'Tab not available' });
+return;
+}
+ setTimeout(function() {
+ attempts = 0;
+ attempt();
+ }, 1000);
+});
+return;
+}
               
                 if (callback) callback({ success: false, error: err });
               }
@@ -69,16 +65,15 @@ var messaging = {
            }
          });
          
-         if (callback) {
-           timeoutId = setTimeout(function() {
-             if (attempts < maxAttempts) {
-               if (console && console.debug) console.debug('[DEBUG] Message timeout, retrying...');
-               attempt();
-             } else {
-               callback({ success: false, error: 'Timeout - content script not responding' });
-             }
-           }, 8000);
-         }
+ if (callback) {
+ timeoutId = setTimeout(function() {
+ if (attempts < maxAttempts) {
+ attempt();
+ } else {
+ callback({ success: false, error: 'Page not responding. Try refreshing the page.' });
+ }
+ }, 5000);
+ }
        }
        
        attempt();
